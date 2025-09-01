@@ -5,7 +5,7 @@ const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
 const input = document.getElementById("prompt");
 const micBtn = document.getElementById("mic-btn");
-const voiceOverlay = document.getElementById("voice-overlay");
+const overlay = document.getElementById("voice-overlay");
 const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 
@@ -18,7 +18,6 @@ infoBtn.addEventListener("click", () => { modal.style.display = "block"; });
 closeModal.addEventListener("click", () => { modal.style.display = "none"; });
 window.addEventListener("click", e => { if(e.target===modal){ modal.style.display="none"; } });
 
-// Funciones chat
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -48,8 +47,11 @@ async function send(text) {
       localStorage.setItem(SESSION_KEY, sessionId);
     }
 
-    if (data.reply) addBubble("ai", data.reply);
-    else addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
+    if (data.reply) {
+      addBubble("ai", data.reply);
+    } else {
+      addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
+    }
 
   } catch (err) {
     addBubble("ai", "❌ Error al conectar con el servidor.");
@@ -77,44 +79,53 @@ async function showGreeting() {
     console.error(err);
   }
 }
+
 showGreeting();
 
 // -----------------------
-// Micrófono con overlay
+// Micrófono y overlay
 // -----------------------
 let recognition;
+let currentTranscript = "";
+
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   recognition = new SpeechRecognition();
   recognition.lang = "es-ES";
   recognition.interimResults = true;
 
-  micBtn.addEventListener("click", () => {
-    micBtn.disabled = true;
-    voiceOverlay.style.display = "flex";
-    recognition.start();
-  });
-
   recognition.addEventListener("result", (e) => {
-    // No se escribe directamente en input
-    const transcript = e.results[0][0].transcript;
-    // Aquí podrías animar la barra de voz según e.results[0][0].confidence
+    currentTranscript = e.results[0][0].transcript;
+    // Actualiza visualización de barras de eco-localización
+    const bars = overlay.querySelectorAll(".bar");
+    bars.forEach((bar, i) => {
+      const scale = 0.3 + Math.random() * 1;
+      bar.style.height = `${scale * 40}px`;
+    });
   });
 
   recognition.addEventListener("end", () => {
     micBtn.disabled = false;
   });
 
+  micBtn.addEventListener("click", () => {
+    overlay.style.display = "flex";
+    micBtn.disabled = true;
+    recognition.start();
+  });
+
   confirmBtn.addEventListener("click", () => {
-    const transcript = recognition.results[0][0].transcript;
-    input.value = transcript;
-    send(transcript);
-    voiceOverlay.style.display = "none";
+    send(currentTranscript);
+    overlay.style.display = "none";
+    input.value = "";
+    currentTranscript = "";
   });
 
   cancelBtn.addEventListener("click", () => {
-    voiceOverlay.style.display = "none";
+    overlay.style.display = "none";
+    currentTranscript = "";
   });
+
 } else {
   micBtn.disabled = true;
   micBtn.title = "Tu navegador no soporta reconocimiento de voz";

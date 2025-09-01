@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Miller2 Chat con Voz</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<title>Miller2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app">
-  <!-- HEADER -->
   <header class="topbar">
     <div class="brand-container">
       <div class="brand">Miller<span>2</span></div>
@@ -21,12 +20,10 @@
     </div>
   </header>
 
-  <!-- CHAT -->
   <div class="chat-wrapper">
     <main id="chat" class="chat"></main>
   </div>
 
-  <!-- FOOTER -->
   <footer class="composer">
     <form id="composer-form">
       <input id="prompt" type="text" placeholder="Escribe aquí..." autocomplete="off">
@@ -36,16 +33,7 @@
   </footer>
 </div>
 
-<!-- MODAL INFO -->
-<div id="info-modal" class="modal">
-  <div class="modal-content">
-    <span id="close-modal">&times;</span>
-    <h2>Acerca de Miller2</h2>
-    <p>Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido, humano y reflexivo, con un toque de melancolía.</p>
-  </div>
-</div>
-
-<!-- VOICE OVERLAY -->
+<!-- Overlay de voz -->
 <div id="voice-overlay">
   <div class="waves">
     <div class="bar"></div>
@@ -57,6 +45,14 @@
   <div class="voice-actions">
     <button id="confirm">✔️</button>
     <button id="cancel">❌</button>
+  </div>
+</div>
+
+<div id="info-modal" class="modal">
+  <div class="modal-content">
+    <span id="close-modal">&times;</span>
+    <h2>Acerca de Miller2</h2>
+    <p>Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido, humano y reflexivo, con un toque de melancolía.</p>
   </div>
 </div>
 

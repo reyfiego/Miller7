@@ -8,7 +8,7 @@
   --orange-side: #FFB34733;
   --orange-side-solid: #FFB347CC;
   --radius: 16px;
-  --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2));
+  --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2)); /* gradiente vertical para scroll */
 }
 
 * { box-sizing: border-box; }
@@ -55,6 +55,7 @@ html, body {
   -webkit-text-fill-color: transparent;
 }
 
+/* GIF pequeño y cuadrado */
 .macmiller-gif {
   width: 30px;
   height: 30px;
@@ -62,6 +63,7 @@ html, body {
   margin-left: 10px;
 }
 
+/* BOTONES HEADER */
 .header-buttons {
   display: flex;
   gap: 12px;
@@ -91,6 +93,7 @@ html, body {
 
 .chat {
   flex: 1;
+  width: 100%;
   max-width: 800px;
   display: flex;
   flex-direction: column;
@@ -101,7 +104,7 @@ html, body {
   overflow-y: auto;
 }
 
-/* Scroll vertical */
+/* Scroll personalizado */
 .chat::-webkit-scrollbar { width: 8px; }
 .chat::-webkit-scrollbar-thumb {
   background: var(--scroll-bg);
@@ -123,11 +126,12 @@ html, body {
   justify-content: center;
   transition: 0.2s;
 }
+
 .btn-mic:hover { opacity: 0.85; }
 
 /* BURBUJAS */
 .bubble {
-  width: 100%;
+  max-width: 75ch;
   border-radius: var(--radius);
   padding: 12px 14px;
   word-wrap: break-word;
@@ -143,12 +147,18 @@ html, body {
 .bubble a:hover { text-decoration: underline; }
 
 /* FORMULARIO */
+footer.composer {
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  background: #111;
+}
+
 #composer-form {
   display: flex;
   gap: 10px;
   flex: 1;
   max-width: 800px;
-  margin: 0 auto;
 }
 
 #prompt {
@@ -173,6 +183,59 @@ html, body {
   color: #111;
 }
 
+/* Overlay de voz */
+#voice-overlay {
+  display: none;
+  position: absolute;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 90%;
+  max-width: 600px;
+  background: #222;
+  border-radius: 12px;
+  padding: 16px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.waves {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.waves .bar {
+  width: 8px;
+  height: 40px;
+  background: var(--accent1);
+  border-radius: 4px;
+  animation: wave 1s infinite;
+}
+
+@keyframes wave {
+  0%, 100% { height: 20px; opacity: 0.5; }
+  50% { height: 40px; opacity: 1; }
+}
+
+.voice-actions {
+  display: flex;
+  gap: 16px;
+}
+
+.voice-actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 18px;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  color: #111;
+}
+
 /* MODAL */
 .modal {
   display: none;
@@ -191,55 +254,4 @@ html, body {
 
 #close-modal { float: right; cursor: pointer; }
 
-/* VOICE OVERLAY */
-#voice-overlay {
-  display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 80px;
-  background: #111;
-  border-top: 2px solid var(--accent1);
-  z-index: 100;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-}
-
-#waves {
-  display: flex;
-  gap: 4px;
-  height: 100%;
-  align-items: center;
-}
-
-#waves .bar {
-  width: 4px;
-  background: var(--accent2);
-  animation: wave 1s infinite;
-  border-radius: 2px;
-}
-
-@keyframes wave {
-  0%, 100% { height: 20%; }
-  50% { height: 100%; }
-}
-
-.voice-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.voice-actions button {
-  font-size: 20px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  background: linear-gradient(90deg, var(--accent1), var(--accent2));
-}
-
-/* Animación fadeIn burbujas */
 @keyframes fadeIn { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:translateY(0);} }
