@@ -1,24 +1,147 @@
-from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
-from dotenv import load_dotenv
-import os
-import datetime
-import random
-import uuid
-import sqlite3
 from passlib.context import CryptContext
-from hashlib import sha256
-from db import init_db
-from groq import Groq
-import speech_recognition as sr
+from dotenv import load_dotenv
+import os, datetime, random, uuid, sqlite3, secrets
+import smtplib
+from email.message import EmailMessage
+
+from db import init_db, DB_PATH
+
+# -------------------------------
+# INICIALIZACIÓN
+# -------------------------------
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+init_db()
+
+# -------------------------------
+# PASSWORD HASHING
+# -------------------------------
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+def verify_password(password: str, hashed: str) -> bool:
+    return pwd_context.verify(password, hashed)
+
+# -------------------------------
+# MODELOS
+# -------------------------------
+class RegisterModel(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+class LoginModel(BaseModel):
+    username: str
+    password: str
+
+class Message(BaseModel):
+    message: str
+    session_id: str | None = None
+
+# -------------------------------
+# UTILIDADES EMAIL
+# -------------------------------
+def send_verification_email(to_email: str, token: str):
+    msg = EmailMessage()
+    msg['Subject'] = 'Verifica tu cuenta'
+    msg['From'] = EMAIL_ADDRESS
+    msg['To'] = to_email
+    link = f"http://localhost:8000/verify?token={token}"
+    msg.set_content(f"Confirma tu correo haciendo clic en el enlace: {link}\nEste enlace expira en 5 minutos.")
+
+    with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+        smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        smtp.send_message(msg)
+
+# -------------------------------
+# RUTAS HTML
+# -------------------------------
+@app.get("/register")
+def register_page(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.get("/login")
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+@app.get("/verify")
+def verify_email(token: str, request: Request):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT email, expires_at FROM email_verifications WHERE token=?", (token,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return templates.TemplateResponse("verify.html", {"request": request, "error": "Token inválido."})
+
+    email, expires_at = row
+    expires_at = datetime.datetime.fromisoformat(expires_at)
+    if datetime.datetime.now() > expires_at:
+        conn.close()
+        return templates.TemplateResponse("verify.html", {"request": request, "error": "Token expirado."})
+
+    cursor.execute("UPDATE users SET verified=1 WHERE email=?", (email,))
+    cursor.execute("DELETE FROM email_verifications WHERE token=?", (token,))
+    conn.commit()
+    conn.close()
+    return templates.TemplateResponse("select_user.html", {"request": request, "email": email})
+
+# -------------------------------
+# ENDPOINTS DE USUARIOS
+# -------------------------------
+@app.post("/register")
+def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE email=? OR username=?", (email, username))
+    if cursor.fetchone():
+        conn.close()
+        return templates.TemplateResponse("register.html", {"request": request, "error": "Usuario o email ya existe."})
+
+    hashed_pw = hash_password(password)
+    cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", (username, email, hashed_pw))
+    conn.commit()
+
+    token = secrets.token_urlsafe(16)
+    expires_at = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    cursor.execute("INSERT INTO email_verifications (email, token, expires_at) VALUES (?, ?, ?)", (email, token, expires_at))
+    conn.commit()
+    conn.close()
+
+    send_verification_email(email, token)
+    return templates.TemplateResponse("register.html", {"request": request, "message": "Revisa tu correo para verificar tu cuenta."})
+
+@app.post("/login")
+def login_user(request: Request, username: str = Form(...), password: str = Form(...)):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password, verified FROM users WHERE username=?", (username,))
+    result = cursor.fetchone()
+    conn.close()
+    if result and verify_password(password, result[0]):
+        if result[1] == 0:
+            return templates.TemplateResponse("login.html", {"request": request, "error": "Debes verificar tu correo primero."})
+        return RedirectResponse(url="/", status_code=303)
+    else:
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Usuario o contraseña incorrectos."})
 
 # -------------------------------
 # INICIALIZACIÓN
 # -------------------------------
 
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+SECRET_KEY = os.getenv("SECRET_KEY")
 
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
