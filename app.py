@@ -239,7 +239,7 @@ async def greeting():
     return {"greeting": get_random_greeting()}
 
 # -------------------------------
-# CHAT CON IA (Groq) con memoria y personalidad mejorada
+# CHAT CON IA (Groq) con memoria, personalidad y modo irreverente
 # -------------------------------
 
 # Diccionario para almacenar memoria por sesión
@@ -270,6 +270,14 @@ async def chat_endpoint(msg: Message):
         if posibles_nombres:
             session['user_data']['name'] = posibles_nombres[0]
 
+    # -------------------------------
+    # ACTIVAR MODO IRREVERENTE
+    # -------------------------------
+    irreverent_trigger = False
+    irreverent_names = ["Luis José", "Luis Ramírez"]
+    if any(nombre in user_text for nombre in irreverent_names) or "Kuzuko 2.0" in user_text:
+        irreverent_trigger = True
+
     # Preparar mensajes para Groq incluyendo contexto de memoria y personalidad
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
     
@@ -285,6 +293,13 @@ async def chat_endpoint(msg: Message):
         "role": "system",
         "content": "Recuerda responder con estilo relajado, fluido y cercano, como Mac Miller. Evita insistir si el usuario dice 'no'."
     })
+
+    # Agregar modo irreverente si corresponde
+    if irreverent_trigger:
+        system_messages.append({
+            "role": "system",
+            "content": "Modo irreverente activado: puedes usar humor sarcástico y bromas directas de forma controlada."
+        })
 
     messages_for_groq = system_messages + session['history']
 
