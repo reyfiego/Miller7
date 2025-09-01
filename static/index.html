@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Miller2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="/static/style.css" rel="stylesheet" />
+
+
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">Miller<span>2</span></div>
+      <div class="hint">realista · minimal · útil</div>
+    </header>
+
+    <main id="chat" class="chat"></main>
+
+    <footer class="composer">
+      <form id="composer-form">
+        <input id="prompt" type="text" placeholder="Escribe aquí... (ej: 'busca Mac Miller', 'hora en Japón')" autocomplete="off" />
+        <button id="send" type="submit">⮕</button>
+      </form>
+      <div class="tips">
+        <span class="tip">Comandos: <code>hora</code>, <code>busca</code>, <code>definir</code>, <code>youtube</code>, <code>chiste</code>, <code>cita</code>, <code>ayuda</code></span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

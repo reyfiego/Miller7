@@ -1,0 +1,159 @@
+:root{
+  --bg: #000;      /* fondo negro puro */
+  --panel: #0b0b0b;/* panel casi negro */
+  --text: #f7f7f7; /* texto blanquecino */
+  --muted: #dcdcdc;/* gris MUY claro (casi blanco) */
+  --accent1: #f5c542; /* dorado suave */
+  --accent2: #7f5af0; /* violeta sutil */
+  --ai: #111111;
+  --you: #0f0f0f;
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden; /* evita scroll doble */
+}
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 18px 16px;
+  border-bottom: 1px solid #111;
+  background: linear-gradient(90deg, #050505, #0b0b0b);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  font-size: 20px;
+}
+.brand span {
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hint { color: var(--muted); font-size: 12px; }
+
+.chat {
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: radial-gradient(1000px 600px at 80% -100px, rgba(127,90,240,0.12), transparent 40%),
+              radial-gradient(800px 500px at 10% -120px, rgba(245,197,66,0.10), transparent 40%);
+}
+
+/* Scroll minimalista */
+.chat::-webkit-scrollbar {
+  width: 6px;
+}
+.chat::-webkit-scrollbar-thumb {
+  background: var(--accent2);
+  border-radius: 10px;
+}
+.chat::-webkit-scrollbar-track {
+  background: #0b0b0b;
+}
+
+.bubble {
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  line-height: 1.45;
+  max-width: 78ch;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+  word-wrap: break-word;
+  animation: fadeIn .25s ease;
+}
+
+.bubble.ai {
+  background: var(--ai);
+  border: 1px solid #121212;
+  align-self: flex-start;
+}
+.bubble.you {
+  background: var(--you);
+  border: 1px solid #161616;
+  align-self: flex-end;
+}
+
+.bubble a {
+  color: var(--accent2);
+  text-decoration: none;
+}
+.bubble a:hover { text-decoration: underline; }
+
+.composer {
+  border-top: 1px solid #111;
+  background: var(--panel);
+  padding: 12px;
+  position: sticky;
+  bottom: 0;
+}
+
+#composer-form {
+  display: flex;
+  gap: 10px;
+}
+
+#prompt {
+  flex: 1;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #141414;
+  outline: none;
+  background: #0d0d0d;
+  color: var(--text);
+  font-size: 15px;
+}
+#prompt::placeholder { color: #aaaaaa; }
+
+#send {
+  border: 0;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  color: #111;
+  transition: transform .05s ease, opacity .2s;
+}
+#send:hover { opacity: 0.9; }
+#send:active { transform: scale(0.98); }
+
+.tips {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.tips code {
+  color: var(--text);
+  background: #0e0e0e;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+/* Animación sutil al aparecer */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
