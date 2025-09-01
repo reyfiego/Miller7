@@ -1,13 +1,14 @@
 :root {
-  --bg: #1c1c1c; /* gris oscuro de fondo lateral */
-  --chat-bg: #111111; /* fondo caja de chat */
+  --bg: #1c1c1c;
+  --chat-bg: #111111;
   --text: #fff;
   --muted: #dcdcdc;
   --accent1: #f5c542;
   --accent2: #7f5af0;
-  --orange-side: #FFB34733; /* naranja difuminado en chat */
-  --orange-side-solid: #FFB347CC; /* naranja cálido sólido para input */
+  --orange-side: #FFB34733;
+  --orange-side-solid: #FFB347CC;
   --radius: 16px;
+  --scroll-bg: rgba(245, 197, 66, 0.2); /* color difuminado para scroll */
 }
 
 * { box-sizing: border-box; }
@@ -54,10 +55,13 @@ html, body {
   -webkit-text-fill-color: transparent;
 }
 
-.brand img {
-  width: 24px;
-  height: 24px;
+/* GIF más pequeño */
+.macmiller-gif {
+  width: 30px;
+  height: 30px;
+  border-radius: 12px;
   object-fit: cover;
+  margin-left: 10px;
 }
 
 /* BOTONES HEADER */
@@ -79,19 +83,6 @@ html, body {
 
 .btn:hover { opacity: 0.9; }
 
-/* Info button circular */
-#info-btn {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-radius: 50%;
-  font-weight: bold;
-  font-size: 18px;
-  border: 2px solid #fff;
-}
-
 /* CHAT CENTRAL */
 .chat-wrapper {
   flex: 1;
@@ -104,7 +95,7 @@ html, body {
 .chat {
   flex: 1;
   max-width: 800px;
-  max-height: 500px; /* altura limitada con scroll */
+  max-height: 500px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -114,9 +105,8 @@ html, body {
   overflow-y: auto;
 }
 
-/* SCROLLBAR */
-.chat::-webkit-scrollbar { width: 6px; }
-.chat::-webkit-scrollbar-thumb { background: var(--accent2); border-radius: 10px; }
+.chat::-webkit-scrollbar { width: 8px; }
+.chat::-webkit-scrollbar-thumb { background: var(--scroll-bg); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
 
 /* BURBUJAS */
@@ -165,15 +155,6 @@ html, body {
   cursor: pointer;
   background: linear-gradient(90deg, var(--accent1), var(--accent2));
   color: #111;
-}
-
-/* GIF de Mac Miller (ejemplo) */
-.macmiller-gif {
-  width: 60px;
-  height: 60px;
-  border-radius: 12px;
-  object-fit: cover;
-  margin-left: 10px;
 }
 
 /* MODAL */

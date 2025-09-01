@@ -14,7 +14,7 @@ infoBtn.addEventListener("click", () => { modal.style.display = "block"; });
 closeModal.addEventListener("click", () => { modal.style.display = "none"; });
 window.addEventListener("click", e => { if(e.target===modal){ modal.style.display="none"; } });
 
-function addBubble(sender, text, type = "reply", url = null) {
+function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
   bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
@@ -29,51 +29,3 @@ function escapeHtml(str) {
 async function send(text) {
   addBubble("you", text);
 
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, session_id: sessionId })
-    });
-
-    const data = await res.json();
-
-    if (data.session_id) {
-      sessionId = data.session_id;
-      localStorage.setItem(SESSION_KEY, sessionId);
-    }
-
-    if (data.reply) {
-      addBubble("ai", data.reply);
-    } else {
-      addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
-    }
-
-  } catch (err) {
-    addBubble("ai", "❌ Error al conectar con el servidor.");
-    console.error(err);
-  }
-}
-
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) {
-    send(text);
-    input.value = "";
-  }
-});
-
-// Bienvenida aleatoria
-async function showGreeting() {
-  try {
-    const res = await fetch("/greeting");
-    const data = await res.json();
-    if (data.greeting) addBubble("ai", data.greeting);
-  } catch (err) {
-    addBubble("ai", "¡Hola! Estoy listo para charlar contigo.");
-    console.error(err);
-  }
-}
-
-showGreeting();
