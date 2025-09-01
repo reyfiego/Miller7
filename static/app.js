@@ -4,6 +4,7 @@ let sessionId = localStorage.getItem(SESSION_KEY) || null;
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
 const input = document.getElementById("prompt");
+const micBtn = document.getElementById("mic-btn"); // Usamos el botón del HTML
 
 // Modal info
 const infoBtn = document.getElementById("info-btn");
@@ -45,7 +46,6 @@ async function send(text) {
 
     if (data.reply) {
       addBubble("ai", data.reply);
-      // speakReply(data.reply); // Desactivado para que no hable, solo texto
     } else {
       addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
     }
@@ -80,16 +80,8 @@ async function showGreeting() {
 showGreeting();
 
 // -----------------------
-// Botón de micrófono dinámico
+// Micrófono
 // -----------------------
-const micBtn = document.createElement("button");
-micBtn.textContent = "🎤";
-micBtn.type = "button"; // Para que no dispare submit
-micBtn.className = "btn-mic";
-
-// Insertarlo justo a la izquierda del botón enviar
-document.getElementById("send").parentNode.insertBefore(micBtn, document.getElementById("send"));
-
 let recognition;
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
