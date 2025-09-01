@@ -1,13 +1,17 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 import os
 import datetime
 import random
 import uuid
-from groq import Groq  # usamos Groq
+import sqlite3
+from passlib.context import CryptContext
+from hashlib import sha256
+from db import init_db
+from groq import Groq
 import speech_recognition as sr
 
 # -------------------------------
@@ -25,6 +29,49 @@ if not API_KEY:
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 groq_client = Groq(api_key=API_KEY)
+
+# -------------------------------
+# CONFIGURACIÓN BASE DE DATOS
+# -------------------------------
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+DB_PATH = "database.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(password: str, hashed: str) -> bool:
+    return pwd_context.verify(password, hashed)
+
+# -------------------------------
+# MODELOS DE USUARIO
+# -------------------------------
+
+class RegisterModel(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+class LoginModel(BaseModel):
+    username: str
+    password: str
 
 # -------------------------------
 # ROLE SYSTEM (preciso)
@@ -217,7 +264,38 @@ def contexto_coincide(user_text: str, contexto: str) -> bool:
     return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
 
 # -------------------------------
-# RUTAS
+# ENDPOINTS DE USUARIOS
+# -------------------------------
+
+@app.post("/register")
+async def register_user(user: RegisterModel):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        hashed_pw = hash_password(user.password)
+        cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+                       (user.username, user.email, hashed_pw))
+        conn.commit()
+        return {"success": True, "message": "Usuario registrado correctamente."}
+    except sqlite3.IntegrityError:
+        return {"success": False, "message": "Usuario o email ya existe."}
+    finally:
+        conn.close()
+
+@app.post("/login")
+async def login_user(user: LoginModel):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT password FROM users WHERE username = ?", (user.username,))
+    result = cursor.fetchone()
+    conn.close()
+    if result and verify_password(user.password, result[0]):
+        return {"success": True, "message": "Login exitoso."}
+    else:
+        return {"success": False, "message": "Usuario o contraseña incorrectos."}
+
+# -------------------------------
+# RUTAS PRINCIPALES
 # -------------------------------
 
 @app.get("/")

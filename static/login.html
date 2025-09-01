@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Login - Miller2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="/static/style.css" rel="stylesheet">
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand-container">
+      <div class="brand">Miller<span>2</span></div>
+    </div>
+  </header>
+
+  <section class="auth-section">
+    <h2>Login</h2>
+    <form id="login-form">
+      <input type="text" id="login-username" placeholder="Usuario" required>
+      <input type="password" id="login-password" placeholder="Contraseña" required>
+      
+      <label class="remember-me">
+        <input type="checkbox" id="login-remember"> Guardar sesión
+      </label>
+      
+      <div class="g-recaptcha" data-sitekey="TU_SITE_KEY"></div>
+      
+      <button type="submit" class="btn">Entrar</button>
+      <p>¿No tienes cuenta? <a href="/register.html">Regístrate</a></p>
+    </form>
+  </section>
+</div>
+
+<script src="/static/login.js"></script>
+</body>
+</html>
