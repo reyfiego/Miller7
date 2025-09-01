@@ -3,59 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat con Voz</title>
+  <title>Miller2 Chat con Voz</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app">
-    <header class="topbar">
-      <div class="brand-container">
-        <div class="brand">Miller<span>2</span></div>
-        <img class="macmiller-gif" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Logo GIF">
-      </div>
-      <div class="header-buttons">
-        <button class="btn">Iniciar sesión</button>
-        <button class="btn">Registro</button>
-        <button id="info-btn" class="btn">?</button>
-      </div>
-    </header>
-
-    <div class="chat-wrapper">
-      <main id="chat" class="chat"></main>
+<div class="app">
+  <!-- HEADER -->
+  <header class="topbar">
+    <div class="brand-container">
+      <div class="brand">Miller<span>2</span></div>
+      <img class="macmiller-gif" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Logo GIF">
     </div>
+    <div class="header-buttons">
+      <button class="btn">Iniciar sesión</button>
+      <button class="btn">Registro</button>
+      <button id="info-btn" class="btn">?</button>
+    </div>
+  </header>
 
-    <footer class="composer">
-      <form id="composer-form">
-        <input id="prompt" type="text" placeholder="Escribe aquí..." autocomplete="off">
-        <button id="mic" type="button" class="btn-mic">🎤</button>
-        <button id="send" type="submit">⮕</button>
-      </form>
-    </footer>
+  <!-- CHAT -->
+  <div class="chat-wrapper">
+    <main id="chat" class="chat"></main>
   </div>
 
-  <!-- Overlay de voz -->
-  <div id="voice-overlay">
-    <div class="waves">
-      <div class="bar"></div>
-      <div class="bar"></div>
-      <div class="bar"></div>
-      <div class="bar"></div>
-      <div class="bar"></div>
-    </div>
-    <div class="voice-actions">
-      <button id="confirm">✔️</button>
-      <button id="cancel">❌</button>
-    </div>
-  </div>
+  <!-- FOOTER -->
+  <footer class="composer">
+    <form id="composer-form">
+      <input id="prompt" type="text" placeholder="Escribe aquí..." autocomplete="off">
+      <button id="mic-btn" type="button" class="btn-mic">🎤</button>
+      <button id="send" type="submit">⮕</button>
+    </form>
+  </footer>
+</div>
 
-  <div id="info-modal" class="modal">
-    <div class="modal-content">
-      <span id="close-modal">&times;</span>
-      <h2>Acerca de Miller2</h2>
-      <p>Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido, humano y reflexivo, con un toque de melancolía.</p>
-    </div>
+<!-- MODAL INFO -->
+<div id="info-modal" class="modal">
+  <div class="modal-content">
+    <span id="close-modal">&times;</span>
+    <h2>Acerca de Miller2</h2>
+    <p>Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido, humano y reflexivo, con un toque de melancolía.</p>
   </div>
+</div>
 
-  <script src="script.js"></script>
+<!-- VOICE OVERLAY -->
+<div id="voice-overlay">
+  <div class="waves">
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+    <div class="bar"></div>
+  </div>
+  <div class="voice-actions">
+    <button id="confirm">✔️</button>
+    <button id="cancel">❌</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
 </body>
 </html>
