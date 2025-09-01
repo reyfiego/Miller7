@@ -1,14 +1,14 @@
 :root {
-  --bg: #1c1c1c; /* gris oscuro lateral */
-  --chat-bg: #111111; /* fondo del chat */
+  --bg: #2e2e2e; /* gris oscuro externo */
+  --chat-bg: #333333; /* fondo de la caja de chat */
   --text: #fff;
   --muted: #dcdcdc;
-  --accent1: #f5c542;
-  --accent2: #7f5af0;
-  --orange-side: #FFB34788; /* naranja cálido lateral más vivo */
+  --accent1: #FFA347; /* naranja cálido más vivo */
+  --accent2: #FF7F50; /* naranja/rosado secundario */
   --radius: 16px;
 }
 
+/* RESET Y GENERAL */
 * { box-sizing: border-box; }
 html, body {
   height: 100%;
@@ -17,22 +17,21 @@ html, body {
   background: var(--bg);
 }
 
+/* GRID PRINCIPAL */
 .app {
   display: grid;
   grid-template-rows: auto 1fr auto;
   height: 100vh;
 }
 
-/* HEADER Y FOOTER */
-.topbar, .composer {
-  width: 100vw;
+/* HEADER */
+.topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 32px;
-  background: #000; /* barra negra */
-  position: sticky;
-  z-index: 10;
+  padding: 12px 24px;
+  background: #000;
+  height: 60px; /* altura más estándar */
 }
 
 .brand-container {
@@ -43,7 +42,7 @@ html, body {
 
 .brand {
   font-weight: 800;
-  font-size: 22px;
+  font-size: 20px;
   color: #fff;
 }
 
@@ -54,19 +53,16 @@ html, body {
 }
 
 .brand img {
-  width: 20px; /* tamaño pequeño GIF */
-  height: 20px;
+  width: 30px;  /* más pequeño que antes */
+  height: 30px;
   object-fit: cover;
 }
 
-.header-buttons {
-  display: flex;
-  gap: 12px;
-}
-
+/* BOTONES HEADER */
+.header-buttons { display: flex; gap: 10px; }
 .btn {
   cursor: pointer;
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 12px;
   font-weight: 700;
   border: none;
@@ -74,57 +70,58 @@ html, body {
   color: #111;
   transition: 0.2s;
 }
-
 .btn:hover { opacity: 0.9; }
 
 #info-btn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   display: flex;
   justify-content: center;
   align-items: center;
   border-radius: 50%;
   font-weight: bold;
-  font-size: 18px;
+  font-size: 16px;
   background: transparent;
   border: 2px solid #fff;
   color: #fff;
   cursor: pointer;
 }
 
-/* CHAT CENTRALIZADO */
+/* CHAT CENTRAL */
 .chat-wrapper {
   flex: 1;
   display: flex;
   justify-content: center;
   padding: 16px;
-  background: linear-gradient(to right, var(--bg) 0%, #2b2b2b 15%, #2b2b2b 85%, var(--bg) 100%);
+  background: #444; /* grisáceo externo */
 }
 
 .chat {
   flex: 1;
-  max-width: 900px; /* un poco más ancho */
+  max-width: 900px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 24px; /* un poco más de padding */
-  background: radial-gradient(ellipse at center, #FFA34744 0%, transparent 80%);
+  padding: 20px;
+  background: var(--chat-bg);
   border-radius: var(--radius);
   overflow-y: auto;
 }
 
-.chat::-webkit-scrollbar { width: 6px; }
-.chat::-webkit-scrollbar-thumb { background: var(--accent2); border-radius: 10px; }
-.chat::-webkit-scrollbar-track { background: var(--chat-bg); }
+/* SCROLLBAR */
+.chat::-webkit-scrollbar { width: 8px; }
+.chat::-webkit-scrollbar-thumb { background: var(--accent1); border-radius: 10px; }
+.chat::-webkit-scrollbar-track { background: #555; }
 
+/* BURBUJAS */
 .bubble {
   max-width: 75ch;
   border-radius: var(--radius);
-  padding: 14px 16px; /* más cómodo */
+  padding: 14px 16px;
   word-wrap: break-word;
   animation: fadeIn .25s ease;
-  background: #000; /* burbujas negras */
-  color: #fff; /* texto blanco */
+  background: #111;
+  color: #fff;
 }
 
 .bubble.ai { align-self: flex-start; border: 1px solid #222; }
@@ -133,11 +130,11 @@ html, body {
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
-/* BARRA DE TEXTO */
+/* FORMULARIO */
 #composer-form {
   display: flex;
   gap: 10px;
-  max-width: 900px; /* igual que chat */
+  max-width: 900px;
   margin: 0 auto;
 }
 
@@ -147,31 +144,28 @@ html, body {
   border-radius: 12px;
   border: 1px solid #141414;
   outline: none;
-  background: #0d0d0d;
+  background: #FFA34733; /* naranja cálido más vivo */
   color: #fff;
   font-size: 15px;
 }
 
-#prompt::placeholder { color: #aaaaaa; }
+#prompt::placeholder { color: #dddddd; }
 
 #send { border: 0; padding: 0 18px; border-radius: 12px; font-weight: 700; cursor: pointer; background: linear-gradient(90deg, var(--accent1), var(--accent2)); color: #111; }
 
-/* MODAL INFO */
+/* MODAL */
 .modal {
   display: none;
   position: fixed;
   top: 0; left: 0;
-  width: 100%;
-  height: 100%;
+  width: 100%; height: 100%;
   background-color: rgba(0,0,0,0.7);
   z-index: 50;
 }
-
 .modal-content {
   background-color: #111; color: #fff;
   margin: 10% auto; padding: 20px; width: 80%; border-radius: 12px;
 }
-
 #close-modal { float: right; cursor: pointer; }
 
 @keyframes fadeIn { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:translateY(0);} }
