@@ -209,6 +209,31 @@ class Message(BaseModel):
     session_id: str | None = None
 
 # -------------------------------
+# FRASES CONTEXTUALES (base de aprendizaje)
+# -------------------------------
+
+FRASES_CONTEXTUALES = [
+    {
+        "texto": "A veces vale más actuar que reflexionar.",
+        "contexto": "miedo a actuar",
+        "proposito": "motivar a enfrentar miedo",
+        "primera_persona": False
+    },
+    {
+        "texto": "A veces solo hay que dejar las flores en agua y crecer.",
+        "contexto": "problemas del pasado afectando presente",
+        "proposito": "superar problemas pasados",
+        "primera_persona": False
+    },
+    {
+        "texto": "A veces cuando más solo me siento es cuando no lo estoy.",
+        "contexto": "soledad, sentirse fuera de lugar",
+        "proposito": "mostrar que la soledad puede ser útil para reflexionar",
+        "primera_persona": True
+    }
+]
+
+# -------------------------------
 # RUTAS BÁSICAS
 # -------------------------------
 
@@ -239,11 +264,14 @@ async def greeting():
     return {"greeting": get_random_greeting()}
 
 # -------------------------------
-# CHAT CON IA (Groq) con memoria, personalidad y modo irreverente
+# CHAT CON IA (Groq) con memoria y frases contextuales
 # -------------------------------
 
-# Diccionario para almacenar memoria por sesión
 session_memory = {}
+
+def contexto_coincide(user_text: str, contexto: str) -> bool:
+    """Simple verificación de coincidencia de contexto en el texto del usuario."""
+    return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
 
 @app.post("/chat")
 async def chat_endpoint(msg: Message):
@@ -256,55 +284,50 @@ async def chat_endpoint(msg: Message):
             status_code=400
         )
 
-    # Inicializar memoria de sesión si no existe
+    # Inicializar memoria de sesión
     if session_id not in session_memory:
         session_memory[session_id] = {"history": [], "user_data": {}}
     session = session_memory[session_id]
 
-    # Guardar mensaje del usuario en la historia
+    # Guardar mensaje del usuario
     session['history'].append({"role": "user", "content": user_text})
 
-    # Detectar y guardar nombre del usuario
+    # Detectar nombre
     if "me llamo" in user_text.lower() or "soy" in user_text.lower():
         posibles_nombres = [palabra.strip() for palabra in user_text.split() if palabra.istitle()]
         if posibles_nombres:
             session['user_data']['name'] = posibles_nombres[0]
 
-    # -------------------------------
-    # ACTIVAR MODO IRREVERENTE
-    # -------------------------------
-    irreverent_trigger = False
-    irreverent_names = ["Luis José", "Luis Ramírez"]
-    if any(nombre in user_text for nombre in irreverent_names) or "Kuzuko 2.0" in user_text:
-        irreverent_trigger = True
-
-    # Preparar mensajes para Groq incluyendo contexto de memoria y personalidad
+    # Preparar mensajes para Groq
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-    
-    # Recordatorio de nombre si existe
+
+    # Recordatorio de nombre
     if session['user_data'].get("name"):
         system_messages.append({
             "role": "system",
             "content": f"El usuario se llama {session['user_data']['name']}. Usa su nombre en las respuestas cuando sea natural."
         })
-    
-    # Recordatorio de personalidad
+
+    # Recordatorio de estilo cercano
     system_messages.append({
         "role": "system",
-        "content": "Recuerda responder con estilo relajado, fluido y cercano, como Mac Miller. Evita insistir si el usuario dice 'no'."
+        "content": "Responde con estilo cercano, humano, empático y fluido. Evita insistir."
     })
 
-    # Agregar modo irreverente si corresponde
-    if irreverent_trigger:
-        system_messages.append({
-            "role": "system",
-            "content": "Modo irreverente activado: puedes usar humor sarcástico y bromas directas de forma controlada."
-        })
+    # Aplicar frases contextuales solo si coincide el contexto, y de manera probabilística
+    for frase in FRASES_CONTEXTUALES:
+        if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:  # 40% de probabilidad
+            contenido = frase["texto"]
+            if frase.get("primera_persona"):
+                contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
+            system_messages.append({
+                "role": "system",
+                "content": f"Inspírate en esta frase para responder: {contenido}"
+            })
 
     messages_for_groq = system_messages + session['history']
 
     try:
-        # Llamada a Groq
         response = groq_client.chat.completions.create(
             model=MODEL_ID,
             messages=messages_for_groq,
@@ -316,11 +339,11 @@ async def chat_endpoint(msg: Message):
         )
         reply_text = response.choices[0].message.content.strip()
 
-        # Manejo de negativas del usuario
+        # Manejo de negativas
         if user_text.lower() in ["no", "no gracias", "prefiero no"]:
             reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
-        # Guardar respuesta en la historia
+        # Guardar respuesta en historia
         session['history'].append({"role": "assistant", "content": reply_text})
 
         return {"reply": reply_text, "session_id": session_id}
