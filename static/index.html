@@ -2,20 +2,22 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Miller2</title> <!-- nombre en la pestaña -->
+  <title>Miller2</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link href="/static/style.css" rel="stylesheet" />
 </head>
 <body>
   <div class="app">
     <header class="topbar">
-      <div class="brand">
-        <span class="white">Miller</span><span class="accent">2</span>
-        <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Miller GIF">
+      <div class="brand-container">
+        <div class="brand">Miller<span>2</span></div>
+        <img class="brand-gif" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="GIF"/>
       </div>
-      <div class="topbar-buttons">
-        <button id="login-btn">Iniciar sesión / Registrarse</button>
-        <button id="info-btn">i</button>
+
+      <div class="header-buttons">
+        <button class="login-btn">Iniciar sesión</button>
+        <button class="register-btn">Registro</button>
+        <button class="info-btn">?</button>
       </div>
     </header>
 
@@ -27,27 +29,8 @@
         <button id="send" type="submit">⮕</button>
       </form>
     </footer>
-
-    <!-- Modal de información -->
-    <div id="info-modal" class="modal">
-      <div class="modal-content">
-        <span class="close">&times;</span>
-        <h2>Sobre Miller2</h2>
-        <p>Miller2 es tu guía minimalista, cercana y reflexiva. No da diagnósticos médicos, pero acompaña en conversaciones y exploraciones personales.</p>
-      </div>
-    </div>
   </div>
 
   <script src="/static/app.js"></script>
-  <script>
-    // Modal info
-    const modal = document.getElementById("info-modal");
-    const infoBtn = document.getElementById("info-btn");
-    const closeBtn = document.querySelector(".modal .close");
-
-    infoBtn.onclick = () => modal.style.display = "block";
-    closeBtn.onclick = () => modal.style.display = "none";
-    window.onclick = (e) => { if(e.target==modal) modal.style.display = "none"; };
-  </script>
 </body>
 </html>
