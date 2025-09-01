@@ -1,4 +1,4 @@
-:root {
+  :root {
   --bg: #1c1c1c;
   --chat-bg: #111111;
   --text: #fff;
@@ -107,6 +107,24 @@ html, body {
 .chat::-webkit-scrollbar { width: 8px; }
 .chat::-webkit-scrollbar-thumb { background: var(--scroll-bg); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
+
+/* Botón de micrófono */
+.btn-mic {
+  background-color: var(--accent1);
+  border: none;
+  color: #111;
+  padding: 0 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-mic:hover {
+  opacity: 0.85;
+}
 
 /* BURBUJAS */
 .bubble {

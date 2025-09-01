@@ -45,7 +45,7 @@ async function send(text) {
 
     if (data.reply) {
       addBubble("ai", data.reply);
-      speakReply(data.reply); // Reproducir voz
+      // speakReply(data.reply); // Desactivado para que no hable, solo texto
     } else {
       addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
     }
@@ -80,12 +80,12 @@ async function showGreeting() {
 showGreeting();
 
 // -----------------------
-// Funcionalidad de micrófono
+// Botón de micrófono dinámico
 // -----------------------
 const micBtn = document.createElement("button");
 micBtn.textContent = "🎤";
 micBtn.className = "btn-mic";
-document.querySelector(".composer").appendChild(micBtn);
+document.querySelector(".composer").insertBefore(micBtn, document.getElementById("send"));
 
 let recognition;
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
@@ -111,17 +111,4 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 } else {
   micBtn.disabled = true;
   micBtn.title = "Tu navegador no soporta reconocimiento de voz";
-}
-
-// -----------------------
-// Función para reproducir respuesta en voz 1
-// -----------------------
-function speakReply(text) {
-  if ('speechSynthesis' in window) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'es-ES';
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    speechSynthesis.speak(utterance);
-  }
 }
