@@ -1,57 +1,98 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<title>Miller2</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link href="/static/style.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <title>Miller2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="style.css" rel="stylesheet" />
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <div class="brand-container">
-      <div class="brand">Miller<span>2</span></div>
-      <img class="macmiller-gif" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Logo GIF">
-    </div>
-    <div class="header-buttons">
-      <button class="btn">Iniciar sesión</button>
-      <button class="btn">Registro</button>
-      <button id="info-btn" class="btn">?</button>
-    </div>
-  </header>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand-container">
+        <div class="brand">Miller<span>2</span></div>
+        <img
+          class="macmiller-gif"
+          src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif"
+          alt="Logo GIF"
+        />
+      </div>
+      <div class="header-buttons">
+        <button id="login-btn" class="btn-audio-style">Iniciar sesión</button>
+        <button id="register-btn" class="btn-audio-style">Registro</button>
+        <button id="info-btn" class="btn-audio-style">?</button>
+      </div>
+    </header>
 
-  <div class="chat-wrapper">
-    <main id="chat" class="chat"></main>
+    <div class="chat-wrapper">
+      <main id="chat" class="chat"></main>
+    </div>
+
+    <footer class="composer">
+      <form id="composer-form">
+        <input id="prompt" type="text" placeholder="Escribe aquí..." autocomplete="off" />
+        <button id="mic-btn" type="button" class="btn-mic">🎤</button>
+        <button id="send" type="submit">⮕</button>
+      </form>
+    </footer>
   </div>
 
-  <footer class="composer">
-    <form id="composer-form">
-      <input id="prompt" type="text" placeholder="Escribe aquí..." autocomplete="off">
-      <button id="mic-btn" type="button" class="btn-mic">🎤</button>
-      <button id="send" type="submit">⮕</button>
+  <!-- Overlay oscuro para paneles -->
+  <div id="panel-overlay" class="panel-overlay"></div>
+
+  <!-- Overlay de voz -->
+  <div id="voice-overlay">
+    <div id="wave-bar">
+      <div class="wave-level"></div>
+    </div>
+    <div class="voice-actions">
+      <button id="confirm">✔️</button>
+      <button id="cancel">❌</button>
+    </div>
+  </div>
+
+  <!-- Modal info -->
+  <div id="info-modal" class="modal">
+    <div class="modal-content">
+      <span id="close-modal">&times;</span>
+      <h2>
+        Acerca de <span class="brand">Miller<span>2</span></span>
+      </h2>
+      <p>
+        Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido,
+        humano y reflexivo, con un toque de melancolía.
+      </p>
+    </div>
+  </div>
+
+  <!-- Panel Login -->
+  <div id="login-panel" class="floating-panel">
+    <div class="floating-header">
+      <h2>Iniciar Sesión</h2>
+      <span class="close-btn" id="close-login">&times;</span>
+    </div>
+    <form id="login-form">
+      <input type="email" name="email" placeholder="Correo" required />
+      <input type="password" name="password" placeholder="Contraseña" required />
+      <div class="captcha-placeholder">[CAPTCHA]</div>
+      <button type="submit">Entrar</button>
     </form>
-  </footer>
-</div>
-
-<!-- Overlay de voz -->
-<div id="voice-overlay">
-  <div id="wave-bar">
-    <div class="wave-level"></div>
   </div>
-  <div class="voice-actions">
-    <button id="confirm">✔️</button>
-    <button id="cancel">❌</button>
-  </div>
-</div>
 
-<div id="info-modal" class="modal">
-  <div class="modal-content">
-    <span id="close-modal">&times;</span>
-    <h2>Acerca de Miller2</h2>
-    <p>Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido, humano y reflexivo, con un toque de melancolía.</p>
+  <!-- Panel Registro -->
+  <div id="register-panel" class="floating-panel">
+    <div class="floating-header">
+      <h2>Registro</h2>
+      <span class="close-btn" id="close-register">&times;</span>
+    </div>
+    <form id="register-form">
+      <input type="email" name="email" placeholder="Correo" required />
+      <input type="password" name="password" placeholder="Contraseña" required />
+      <div class="captcha-placeholder">[CAPTCHA]</div>
+      <button type="submit">Crear cuenta</button>
+    </form>
   </div>
-</div>
 
-<script src="/static/app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
