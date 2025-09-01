@@ -5,9 +5,12 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from dotenv import load_dotenv
+from groq import Groq
+
 import os, datetime, random, uuid, sqlite3, secrets
 import smtplib
 from email.message import EmailMessage
+groq_client = Groq(api_key=API_KEY)
 
 # Si usarás reconocimiento de voz
 import speech_recognition as sr  
