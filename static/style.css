@@ -55,11 +55,10 @@ html, body {
   -webkit-text-fill-color: transparent;
 }
 
-/* GIF más pequeño */
+/* GIF pequeño y cuadrado */
 .macmiller-gif {
   width: 30px;
   height: 30px;
-  border-radius: 12px;
   object-fit: cover;
   margin-left: 10px;
 }
