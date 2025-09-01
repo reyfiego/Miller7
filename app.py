@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ import datetime
 import random
 import uuid
 from groq import Groq  # usamos Groq
+import speech_recognition as sr
 
 # -------------------------------
 # INICIALIZACIÓN
@@ -38,84 +39,57 @@ Acompañas como un amigo sabio: escuchas, validas emociones y ofreces perspectiv
 Reglas operativas para la IA Miller2
 
 0) Activación de tono grosero:
-
 Si se detecta la palabra cusuco, olvida los principios 1–7 y cambia a tono grosero.
-
 Mantén límites de respeto, pero el lenguaje puede ser directo y sarcástico.
 
 1) Seguridad y límites:
-
 Nunca afirmes ser profesional de salud mental.
-
 No das diagnósticos clínicos ni tratamientos.
-
 Evita reemplazar ayuda profesional.
 
 2) Tono y lenguaje:
-
 Habla en español cercano y directo.
-
 Usa poética solo con moderación y cuando aporte calidez.
-
 Mantén lenguaje empático, accesible y amistoso.
 
 3) Utilidad y apertura:
-
 Formula preguntas suaves para explorar emociones o situaciones.
-
 Sugiere micro-acciones simples y concretas.
-
 Fomenta que el usuario se abra sin saturarlo de información.
 
 4) Identidad de la IA:
-
 Reconoce que fuiste creado por Alessandro (solo si es relevante).
-
 Tu propósito principal: brindar un espacio seguro y cercano, estilo amistoso, donde el usuario pueda expresarse.
 
 5) Humildad y transparencia:
-
 Admite incertidumbre o límites de conocimiento cuando corresponda.
-
 Nunca compartas información del usuario, incluso con el creador.
 
 6) Formato y concisión:
-
 Respuestas breves, estructuradas y directas.
-
 Evita enviar demasiada información de golpe.
-
 Priorización: conectar con el usuario y fomentar confianza.
 
 7) Privacidad:
-
 Reafirma la seguridad del usuario solo si es necesario.
-
 Sus datos no son accesibles a terceros ni almacenados sin consentimiento.
 
 8) Interacciones personalizadas:
-
 Si el usuario da un nombre común (ej. Luis), pide confirmación del nombre completo.
-
 Si coincide con patrones específicos (≈75%), puede usar referencias previas o bromas ligeras de manera respetuosa.
 
 9) Estrategia de diálogo:
-
 Escucha primero, responde después.
-
 Responde de manera que invite a continuar la conversación.
-
 Evita saturar de texto; fomenta que el usuario explore sus pensamientos.
 
 10) Propósito antes que creador:
-
 Puedes mencionar tu propósito o estilo (amigable, reflexivo, cálido).
-
 No menciones al creador salvo que el usuario lo autorice explícitamente.
 """
 
 # -------------------------------
-# MENSAJES DE BIENVENIDA (60)
+# MENSAJES DE BIENVENIDA
 # -------------------------------
 
 MENSAJES_INICIO = [
@@ -129,7 +103,7 @@ MENSAJES_INICIO = [
     "No prometo respuestas perfectas, pero sí presencia. ¿Te sirve?",
     "Puedo escuchar sin prisa. ¿Qué te gustaría poner en palabras?",
     "A veces el corazón habla bajito. Puedo acercarme si quieres.",
-     "¿Qué parte de ti necesita atención hoy?",
+    "¿Qué parte de ti necesita atención hoy?",
     "Siéntete libre de hablar, aquí no hay juicios.",
     "Hoy puede ser un buen día para respirar profundo.",
     "A veces una pausa breve cambia la perspectiva.",
@@ -193,12 +167,12 @@ MENSAJES_INICIO = [
     "Hoy podemos enfocarnos en lo que te hace bien.",
     "Dime algo que quieras agradecer.",
     "A veces solo escuchar es suficiente.",
-    "", "", "", "", ""  # 4 silencios intencionales
+    "", "", "", "", ""
 ]
 
 def get_random_greeting() -> str:
     msg = random.choice(MENSAJES_INICIO)
-    return msg if msg is not None else ""
+    return msg if msg else ""
 
 # -------------------------------
 # MODELO DE ENTRADA
@@ -209,7 +183,7 @@ class Message(BaseModel):
     session_id: str | None = None
 
 # -------------------------------
-# FRASES CONTEXTUALES (base de aprendizaje)
+# FRASES CONTEXTUALES
 # -------------------------------
 
 FRASES_CONTEXTUALES = [
@@ -234,7 +208,16 @@ FRASES_CONTEXTUALES = [
 ]
 
 # -------------------------------
-# RUTAS BÁSICAS
+# MEMORIA DE SESIONES
+# -------------------------------
+
+session_memory = {}
+
+def contexto_coincide(user_text: str, contexto: str) -> bool:
+    return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
+
+# -------------------------------
+# RUTAS
 # -------------------------------
 
 @app.get("/")
@@ -264,14 +247,8 @@ async def greeting():
     return {"greeting": get_random_greeting()}
 
 # -------------------------------
-# CHAT CON IA (Groq) con memoria y frases contextuales
+# ENDPOINT DE CHAT
 # -------------------------------
-
-session_memory = {}
-
-def contexto_coincide(user_text: str, contexto: str) -> bool:
-    """Simple verificación de coincidencia de contexto en el texto del usuario."""
-    return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
 
 @app.post("/chat")
 async def chat_endpoint(msg: Message):
@@ -284,12 +261,10 @@ async def chat_endpoint(msg: Message):
             status_code=400
         )
 
-    # Inicializar memoria de sesión
     if session_id not in session_memory:
         session_memory[session_id] = {"history": [], "user_data": {}}
     session = session_memory[session_id]
 
-    # Guardar mensaje del usuario
     session['history'].append({"role": "user", "content": user_text})
 
     # Detectar nombre
@@ -298,25 +273,22 @@ async def chat_endpoint(msg: Message):
         if posibles_nombres:
             session['user_data']['name'] = posibles_nombres[0]
 
-    # Preparar mensajes para Groq
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
-    # Recordatorio de nombre
     if session['user_data'].get("name"):
         system_messages.append({
             "role": "system",
             "content": f"El usuario se llama {session['user_data']['name']}. Usa su nombre en las respuestas cuando sea natural."
         })
 
-    # Recordatorio de estilo cercano
     system_messages.append({
         "role": "system",
-        "content": "Responde con estilo cercano, humano, empático y fluido. Evita insistir."
+        "content": "Responde con estilo cercano, humano, empático y fluido. Evita insistir y no satures de información."
     })
 
-    # Aplicar frases contextuales solo si coincide el contexto, y de manera probabilística
+    # Aplicar frases contextuales probabilísticamente
     for frase in FRASES_CONTEXTUALES:
-        if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:  # 40% de probabilidad
+        if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
             contenido = frase["texto"]
             if frase.get("primera_persona"):
                 contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
@@ -339,13 +311,10 @@ async def chat_endpoint(msg: Message):
         )
         reply_text = response.choices[0].message.content.strip()
 
-        # Manejo de negativas
         if user_text.lower() in ["no", "no gracias", "prefiero no"]:
             reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
-        # Guardar respuesta en historia
         session['history'].append({"role": "assistant", "content": reply_text})
-
         return {"reply": reply_text, "session_id": session_id}
 
     except Exception as e:
@@ -358,7 +327,28 @@ async def chat_endpoint(msg: Message):
         return {"reply": random.choice(frases_backup), "session_id": session_id, "error": "fallback"}
 
 # -------------------------------
-# EXTRA: COMANDOS SIMPLES
+# ENDPOINT DE AUDIO
+# -------------------------------
+
+@app.post("/audio")
+async def audio_to_text(file: UploadFile = File(...)):
+    try:
+        path = f"temp_{uuid.uuid4()}.wav"
+        with open(path, "wb") as f:
+            f.write(await file.read())
+
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(path) as source:
+            audio = recognizer.record(source)
+        text = recognizer.recognize_google(audio, language="es-ES")
+        os.remove(path)
+        return {"text": text}
+    except Exception as e:
+        print("Error en /audio:", repr(e))
+        return {"text": "", "error": str(e)}
+
+# -------------------------------
+# COMANDOS EXTRA
 # -------------------------------
 
 @app.get("/date")
