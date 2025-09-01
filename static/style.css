@@ -20,10 +20,12 @@ html, body {
   background: var(--bg);
 }
 
+/* CONTENEDOR PRINCIPAL */
 .app {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
 }
 
 /* HEADER */
@@ -60,26 +62,26 @@ html, body {
 }
 .btn:hover { opacity: 0.9; }
 
-/* CHAT CENTRAL */
+/* CHAT WRAPPER */
 .chat-wrapper {
-  flex: 1;
+  flex: 1; /* ocupa todo el espacio disponible */
   display: flex;
   justify-content: center;
   padding: 16px;
   background: var(--bg);
 }
 
+/* CHAT */
 .chat {
   display: flex;
   flex-direction: column;
   gap: 12px;
   width: 100%;
   max-width: 800px;
-  height: 100%;
-  padding: 16px;
   background: radial-gradient(ellipse at center, var(--orange-side) 0%, transparent 80%);
   border-radius: var(--radius);
-  overflow-y: auto; /* Scroll vertical */
+  padding: 16px;
+  overflow-y: auto; /* scroll vertical */
 }
 
 /* Scroll personalizado */
@@ -102,7 +104,7 @@ html, body {
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
-/* FORMULARIO CHAT - siempre abajo */
+/* FOOTER COMPOSER - siempre abajo */
 footer.composer {
   display: flex;
   justify-content: center;
@@ -111,13 +113,12 @@ footer.composer {
 }
 #composer-form {
   display: flex;
-  flex-direction: column; /* caja de texto arriba, botones debajo si quieres */
   gap: 10px;
   width: 100%;
   max-width: 800px;
 }
 #prompt {
-  width: 100%;
+  flex: 1;
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid #141414;
@@ -127,7 +128,6 @@ footer.composer {
 }
 #prompt::placeholder { color: #aaaaaa; }
 #send {
-  align-self: flex-end; /* botón al final de la caja */
   border: 0;
   padding: 0 18px;
   border-radius: 12px;
@@ -181,7 +181,7 @@ footer.composer {
 }
 #close-modal { float: right; cursor: pointer; }
 
-/* SECCIONES LOGIN Y REGISTRO */
+/* LOGIN Y REGISTRO */
 .form-section {
   display: none;
   flex-direction: column;
