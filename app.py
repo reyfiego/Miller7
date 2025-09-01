@@ -6,11 +6,9 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 from groq import Groq
-
 import os, datetime, random, uuid, sqlite3, secrets
 import smtplib
 from email.message import EmailMessage
-groq_client = Groq(api_key=API_KEY)
 
 # Si usarás reconocimiento de voz
 import speech_recognition as sr  
@@ -29,6 +27,7 @@ MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
 if not API_KEY:
     raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
+groq_client = Groq(api_key=API_KEY)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
