@@ -11,19 +11,16 @@
     <header class="topbar">
       <div class="brand-container">
         <div class="brand">Miller<span>2</span></div>
-        <img class="brand-gif" src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="GIF"/>
+        <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Logo GIF">
       </div>
-
       <div class="header-buttons">
-        <button class="login-btn">Iniciar sesión</button>
-        <button class="register-btn">Registro</button>
-        <button class="info-btn">?</button>
+        <button class="btn">Iniciar sesión</button>
+        <button class="btn">Registro</button>
+        <button id="info-btn">?</button>
       </div>
     </header>
 
-    <div class="chat-wrapper">
-      <main id="chat" class="chat"></main>
-    </div>
+    <main id="chat" class="chat"></main>
 
     <footer class="composer">
       <form id="composer-form">
@@ -31,6 +28,15 @@
         <button id="send" type="submit">⮕</button>
       </form>
     </footer>
+  </div>
+
+  <!-- Modal Acerca de -->
+  <div id="info-modal" class="modal">
+    <div class="modal-content">
+      <span id="close-modal">&times;</span>
+      <h2>Acerca de Miller2</h2>
+      <p>Miller2 es tu guía cercana creada por Alessandro. Su estilo es cálido, humano y reflexivo, con un toque de melancolía.</p>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>
