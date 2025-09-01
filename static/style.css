@@ -1,10 +1,10 @@
 :root{
-  --bg: #000;      /* fondo negro puro */
-  --panel: #0b0b0b;/* panel casi negro */
-  --text: #f7f7f7; /* texto blanquecino */
-  --muted: #dcdcdc;/* gris MUY claro (casi blanco) */
-  --accent1: #f5c542; /* dorado suave */
-  --accent2: #7f5af0; /* violeta sutil */
+  --bg: #000;
+  --panel: #0b0b0b;
+  --text: #f7f7f7;
+  --muted: #dcdcdc;
+  --accent1: #f5c542;
+  --accent2: #7f5af0;
   --ai: #111111;
   --you: #0f0f0f;
   --radius: 16px;
@@ -17,7 +17,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
-  overflow: hidden; /* evita scroll doble */
+  overflow: hidden;
 }
 
 .app {
@@ -47,7 +47,7 @@ body {
   font-weight: 800;
   letter-spacing: 0.5px;
   font-size: 20px;
-  margin-left: 0;
+  margin-left: 0; /* full left */
 }
 
 .brand img {
@@ -74,7 +74,6 @@ body {
               radial-gradient(800px 500px at 10% -120px, rgba(245,197,66,0.10), transparent 40%);
 }
 
-/* Scroll minimalista */
 .chat::-webkit-scrollbar {
   width: 6px;
 }
@@ -96,21 +95,10 @@ body {
   animation: fadeIn .25s ease;
 }
 
-.bubble.ai {
-  background: var(--ai);
-  border: 1px solid #121212;
-  align-self: flex-start;
-}
-.bubble.you {
-  background: var(--you);
-  border: 1px solid #161616;
-  align-self: flex-end;
-}
+.bubble.ai { background: var(--ai); border: 1px solid #121212; align-self: flex-start; }
+.bubble.you { background: var(--you); border: 1px solid #161616; align-self: flex-end; }
 
-.bubble a {
-  color: var(--accent2);
-  text-decoration: none;
-}
+.bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
 .composer {
@@ -121,10 +109,7 @@ body {
   bottom: 0;
 }
 
-#composer-form {
-  display: flex;
-  gap: 10px;
-}
+#composer-form { display: flex; gap: 10px; }
 
 #prompt {
   flex: 1;
@@ -151,8 +136,3 @@ body {
 #send:hover { opacity: 0.9; }
 #send:active { transform: scale(0.98); }
 
-/* Animación sutil al aparecer */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
