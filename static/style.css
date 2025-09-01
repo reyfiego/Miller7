@@ -154,7 +154,7 @@ html, body {
   border: 1px solid #141414;
   outline: none;
   background: var(--orange-side-solid); /* naranja cálido */
-  color: #111; /* mejor contraste con naranja */
+  color: #111;
   font-size: 15px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
@@ -171,7 +171,7 @@ html, body {
   color: #111;
 }
 
-/* GIF de Mac Miller (ejemplo, ajustar según referencia) */
+/* GIF de Mac Miller */
 .macmiller-gif {
   width: 60px;
   height: 60px;

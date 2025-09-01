@@ -11,7 +11,7 @@
   <header class="topbar">
     <div class="brand-container">
       <div class="brand">Miller<span>2</span></div>
-      <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Logo GIF">
+      <img src="https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExYTJmMjRjbG1senF1NXVyZTB0MDg2ZTl2OW90Zng2ZTJqaG4ya2M1OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/gj0pAC4W4uq1uq84oe/giphy.gif" alt="Logo GIF" class="macmiller-gif">
     </div>
     <div class="header-buttons">
       <button class="btn">Iniciar sesión</button>
@@ -40,25 +40,6 @@
   </div>
 </div>
 
-<script>
-  // Modal info
-  const infoBtn = document.getElementById("info-btn");
-  const modal = document.getElementById("info-modal");
-  const closeModal = document.getElementById("close-modal");
-  infoBtn.addEventListener("click", () => { modal.style.display = "block"; });
-  closeModal.addEventListener("click", () => { modal.style.display = "none"; });
-  window.addEventListener("click", e => { if(e.target===modal){ modal.style.display="none"; } });
-
-  // Ejemplo: mostrar mensaje IA
-  const chat = document.getElementById("chat");
-  function addMessageAI(text) {
-    const div = document.createElement("div");
-    div.className = "bubble ai";
-    div.textContent = text;
-    chat.appendChild(div);
-    chat.scrollTop = chat.scrollHeight;
-  }
-
-</script>
+<script src="/static/app.js"></script>
 </body>
 </html>
