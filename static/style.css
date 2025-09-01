@@ -6,7 +6,7 @@
   --accent1: #f5c542;
   --accent2: #7f5af0;
   --orange-side: #FFB34733; /* naranja difuminado en chat */
-  --orange-side-solid: #FFB347CC; /* naranja cálido sólido para input */
+  --orange-side-solid: #FFB347CC; /* naranja sólido para input */
   --radius: 16px;
 }
 
@@ -67,7 +67,7 @@ html, body {
   gap: 12px;
 }
 
-.btn {
+.btn, #info-btn {
   cursor: pointer;
   padding: 8px 16px;
   border-radius: 12px;
@@ -76,24 +76,12 @@ html, body {
   background: linear-gradient(90deg, var(--accent1), var(--accent2));
   color: #111;
   transition: 0.2s;
-}
-
-.btn:hover { opacity: 0.9; }
-
-#info-btn {
-  width: 36px;
-  height: 36px;
   display: flex;
   justify-content: center;
   align-items: center;
-  border-radius: 50%;
-  font-weight: bold;
-  font-size: 18px;
-  background: transparent;
-  border: 2px solid #fff;
-  color: #fff;
-  cursor: pointer;
 }
+
+.btn:hover, #info-btn:hover { opacity: 0.9; }
 
 /* CHAT CENTRAL */
 .chat-wrapper {
@@ -113,10 +101,11 @@ html, body {
   padding: 16px;
   background: radial-gradient(ellipse at center, var(--orange-side) 0%, transparent 80%);
   border-radius: var(--radius);
-  overflow-y: auto;
+  overflow-y: auto;  /* scroll vertical solo del chat */
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent2) var(--chat-bg);
 }
 
-/* SCROLLBAR */
 .chat::-webkit-scrollbar { width: 6px; }
 .chat::-webkit-scrollbar-thumb { background: var(--accent2); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
@@ -153,8 +142,8 @@ html, body {
   border-radius: 12px;
   border: 1px solid #141414;
   outline: none;
-  background: var(--orange-side-solid); /* naranja cálido */
-  color: #111;
+  background: #333333; /* grisáceo */
+  color: #f0f0f0; /* texto claro */
   font-size: 15px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }

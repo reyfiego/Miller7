@@ -13,7 +13,6 @@ infoBtn.addEventListener("click", () => { modal.style.display = "block"; });
 closeModal.addEventListener("click", () => { modal.style.display = "none"; });
 window.addEventListener("click", e => { if(e.target===modal){ modal.style.display="none"; } });
 
-// Función para agregar burbujas al chat
 function addBubble(sender, text, type = "reply", url = null) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -30,7 +29,6 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
 }
 
-// Enviar mensaje al backend
 async function send(text) {
   addBubble("you", text);
 
@@ -60,7 +58,6 @@ async function send(text) {
   }
 }
 
-// Manejo del formulario
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
@@ -70,7 +67,7 @@ form.addEventListener("submit", (e) => {
   }
 });
 
-// 🌟 Bienvenidas aleatoria
+// 🌟 Bienvenida aleatoria
 async function showGreeting() {
   try {
     const res = await fetch("/greeting");
