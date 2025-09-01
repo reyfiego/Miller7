@@ -239,8 +239,11 @@ async def greeting():
     return {"greeting": get_random_greeting()}
 
 # -------------------------------
-# CHAT CON IA (Groq)
+# CHAT CON IA (Groq) con memoria y personalidad mejorada
 # -------------------------------
+
+# Diccionario para almacenar memoria por sesión
+session_memory = {}
 
 @app.post("/chat")
 async def chat_endpoint(msg: Message):
@@ -253,13 +256,43 @@ async def chat_endpoint(msg: Message):
             status_code=400
         )
 
+    # Inicializar memoria de sesión si no existe
+    if session_id not in session_memory:
+        session_memory[session_id] = {"history": [], "user_data": {}}
+    session = session_memory[session_id]
+
+    # Guardar mensaje del usuario en la historia
+    session['history'].append({"role": "user", "content": user_text})
+
+    # Detectar y guardar nombre del usuario
+    if "me llamo" in user_text.lower() or "soy" in user_text.lower():
+        posibles_nombres = [palabra.strip() for palabra in user_text.split() if palabra.istitle()]
+        if posibles_nombres:
+            session['user_data']['name'] = posibles_nombres[0]
+
+    # Preparar mensajes para Groq incluyendo contexto de memoria y personalidad
+    system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+    
+    # Recordatorio de nombre si existe
+    if session['user_data'].get("name"):
+        system_messages.append({
+            "role": "system",
+            "content": f"El usuario se llama {session['user_data']['name']}. Usa su nombre en las respuestas cuando sea natural."
+        })
+    
+    # Recordatorio de personalidad
+    system_messages.append({
+        "role": "system",
+        "content": "Recuerda responder con estilo relajado, fluido y cercano, como Mac Miller. Evita insistir si el usuario dice 'no'."
+    })
+
+    messages_for_groq = system_messages + session['history']
+
     try:
+        # Llamada a Groq
         response = groq_client.chat.completions.create(
             model=MODEL_ID,
-            messages=[
-                {"role": "system", "content": SYSTEM_ROLE},
-                {"role": "user", "content": user_text}
-            ],
+            messages=messages_for_groq,
             max_tokens=250,
             temperature=0.85,
             top_p=0.95,
@@ -267,6 +300,14 @@ async def chat_endpoint(msg: Message):
             presence_penalty=0.8
         )
         reply_text = response.choices[0].message.content.strip()
+
+        # Manejo de negativas del usuario
+        if user_text.lower() in ["no", "no gracias", "prefiero no"]:
+            reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
+
+        # Guardar respuesta en la historia
+        session['history'].append({"role": "assistant", "content": reply_text})
+
         return {"reply": reply_text, "session_id": session_id}
 
     except Exception as e:
