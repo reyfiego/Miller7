@@ -70,7 +70,7 @@ form.addEventListener("submit", (e) => {
   }
 });
 
-// 🌟 Bienvenida aleatoria
+// 🌟 Bienvenidas aleatoria
 async function showGreeting() {
   try {
     const res = await fetch("/greeting");
