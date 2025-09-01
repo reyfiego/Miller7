@@ -8,10 +8,11 @@
   --orange-side: #FFB34733;
   --orange-side-solid: #FFB347CC;
   --radius: 16px;
-  --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2)); /* gradiente vertical para scroll */
+  --scroll-color: #f5c542cc; /* color sólido para el scroll */
 }
 
 * { box-sizing: border-box; }
+
 html, body {
   height: 100%;
   margin: 0;
@@ -27,13 +28,14 @@ html, body {
 
 /* HEADER */
 .topbar {
-  width: 100vw;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 32px;
   background: #000;
   position: sticky;
+  top: 0;
   z-index: 10;
 }
 
@@ -55,7 +57,6 @@ html, body {
   -webkit-text-fill-color: transparent;
 }
 
-/* GIF pequeño y cuadrado */
 .macmiller-gif {
   width: 30px;
   height: 30px;
@@ -63,7 +64,6 @@ html, body {
   margin-left: 10px;
 }
 
-/* BOTONES HEADER */
 .header-buttons {
   display: flex;
   gap: 12px;
@@ -107,7 +107,7 @@ html, body {
 /* Scroll personalizado */
 .chat::-webkit-scrollbar { width: 8px; }
 .chat::-webkit-scrollbar-thumb {
-  background: var(--scroll-bg);
+  background: var(--scroll-color);
   border-radius: 10px;
 }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
@@ -146,7 +146,7 @@ html, body {
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
-/* FORMULARIO */
+/* FOOTER */
 footer.composer {
   display: flex;
   justify-content: center;
@@ -157,7 +157,7 @@ footer.composer {
 #composer-form {
   display: flex;
   gap: 10px;
-  flex: 1;
+  width: 100%;
   max-width: 800px;
 }
 
@@ -185,7 +185,7 @@ footer.composer {
 
 /* Overlay de voz */
 #voice-overlay {
-  display: none;
+  display: none; /* oculto inicialmente */
   position: absolute;
   bottom: 80px;
   left: 50%;
@@ -196,7 +196,6 @@ footer.composer {
   border-radius: 12px;
   padding: 16px;
   z-index: 100;
-  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
@@ -249,7 +248,10 @@ footer.composer {
 
 .modal-content {
   background-color: #111; color: #fff;
-  margin: 10% auto; padding: 20px; width: 80%; border-radius: 12px;
+  margin: 10% auto;
+  padding: 20px;
+  width: 80%;
+  border-radius: 12px;
 }
 
 #close-modal { float: right; cursor: pointer; }
