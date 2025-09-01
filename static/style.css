@@ -1,10 +1,11 @@
 :root{
-  --bg: #000;
-  --panel: #111;       /* más visible */
-  --text: #f7f7f7;
-  --muted: #dcdcdc;
-  --accent1: #f5c542;
-  --accent2: #7f5af0;
+  --bg: #000;          /* fondo negro puro */
+  --panel: #111;       /* panel de barras */
+  --text: #f7f7f7;     /* texto general */
+  --muted: #dcdcdc;    /* gris claro */
+  --accent1: #f5c542;  /* dorado suave */
+  --accent2: #7f5af0;  /* violeta sutil */
+  --accent-chat: #ff8c42; /* naranja cálido para los lados del chat */
   --ai: #111111;
   --you: #0f0f0f;
   --radius: 16px;
@@ -16,26 +17,65 @@ html, body { height: 100%; margin:0; font-family: Inter, system-ui, -apple-syste
 .app { height:100%; display:grid; grid-template-rows:auto 1fr auto; max-width:900px; margin:0 auto; }
 
 .topbar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:18px 16px; background:#1a1a1a; border-bottom:2px solid #222;
-  position:sticky; top:0; z-index:10;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:18px 16px;
+  background:#1a1a1a;
+  border-bottom:2px solid #222;
+  position:sticky;
+  top:0;
+  z-index:10;
 }
 
-.brand { display:flex; align-items:center; gap:8px; margin-left:0; font-weight:800; font-size:20px; }
+.brand-container {
+  display:flex;
+  justify-content:flex-start; /* branding a la izquierda */
+  flex:1;
+}
+
+.brand { 
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-weight:800;
+  font-size:20px;
+}
 .brand .white { color:white; }
 .brand .accent { background: linear-gradient(90deg,var(--accent1),var(--accent2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
 .brand img { width:28px; height:28px; border-radius:4px; }
 
+.topbar-buttons {
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
 .topbar-buttons button {
-  margin-left:10px; padding:6px 12px; border-radius:6px; border:none;
-  cursor:pointer; font-weight:700; background:#222; color:white;
-  transition: 0.2s; font-size:14px;
+  padding:6px 12px;
+  border-radius:6px;
+  border:none;
+  cursor:pointer;
+  font-weight:700;
+  background:#222;
+  color:white;
+  transition:0.2s;
+  font-size:14px;
 }
 .topbar-buttons button:hover { background:#333; }
 
 .chat {
-  padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:14px;
-  background: radial-gradient(1000px 600px at 80% -100px, rgba(127,90,240,0.12), transparent 40%), radial-gradient(800px 500px at 10% -120px, rgba(245,197,66,0.10), transparent 40%);
+  padding:16px; 
+  overflow-y:auto; 
+  display:flex; 
+  flex-direction:column; 
+  gap:14px;
+  /* Fondo degradado naranja cálido a los lados */
+  background: radial-gradient(ellipse at top left, rgba(255,140,66,0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at top right, rgba(255,140,66,0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom left, rgba(255,140,66,0.15) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom right, rgba(255,140,66,0.15) 0%, transparent 50%),
+              linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 100%);
 }
 
 .chat::-webkit-scrollbar { width:6px; }
