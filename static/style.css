@@ -8,11 +8,10 @@
   --orange-side: #FFB34733;
   --orange-side-solid: #FFB347CC;
   --radius: 16px;
-  --scroll-color: #f5c542cc; /* color sólido para el scroll */
+  --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2));
 }
 
 * { box-sizing: border-box; }
-
 html, body {
   height: 100%;
   margin: 0;
@@ -20,55 +19,26 @@ html, body {
   background: var(--bg);
 }
 
-.app {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  height: 100vh;
-}
+.app { display: grid; grid-template-rows: auto 1fr auto; height: 100vh; }
 
 /* HEADER */
 .topbar {
-  width: 100%;
+  width: 100vw;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 32px;
   background: #000;
   position: sticky;
-  top: 0;
   z-index: 10;
 }
 
-.brand-container {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
+.brand-container { display: flex; align-items: center; gap: 6px; }
+.brand { font-weight: 800; font-size: 24px; color: #fff; }
+.brand span { background: linear-gradient(90deg, var(--accent1), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.macmiller-gif { width: 30px; height: 30px; object-fit: cover; margin-left: 10px; }
 
-.brand {
-  font-weight: 800;
-  font-size: 24px;
-  color: #fff;
-}
-
-.brand span {
-  background: linear-gradient(90deg, var(--accent1), var(--accent2));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.macmiller-gif {
-  width: 30px;
-  height: 30px;
-  object-fit: cover;
-  margin-left: 10px;
-}
-
-.header-buttons {
-  display: flex;
-  gap: 12px;
-}
-
+.header-buttons { display: flex; gap: 12px; }
 .btn {
   cursor: pointer;
   padding: 8px 16px;
@@ -79,7 +49,6 @@ html, body {
   color: #111;
   transition: 0.2s;
 }
-
 .btn:hover { opacity: 0.9; }
 
 /* CHAT CENTRAL */
@@ -106,13 +75,10 @@ html, body {
 
 /* Scroll personalizado */
 .chat::-webkit-scrollbar { width: 8px; }
-.chat::-webkit-scrollbar-thumb {
-  background: var(--scroll-color);
-  border-radius: 10px;
-}
+.chat::-webkit-scrollbar-thumb { background: var(--scroll-bg); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
 
-/* Botón de micrófono */
+/* Botón micrófono */
 .btn-mic {
   background: linear-gradient(90deg, var(--accent1), var(--accent2));
   border: none;
@@ -126,7 +92,6 @@ html, body {
   justify-content: center;
   transition: 0.2s;
 }
-
 .btn-mic:hover { opacity: 0.85; }
 
 /* BURBUJAS */
@@ -139,28 +104,19 @@ html, body {
   background: #000;
   color: #fff;
 }
-
 .bubble.ai { align-self: flex-start; border: 1px solid #222; }
 .bubble.you { align-self: flex-end; border: 1px solid #333; }
-
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
-/* FOOTER */
+/* FORMULARIO */
 footer.composer {
   display: flex;
   justify-content: center;
   padding: 16px;
   background: #111;
 }
-
-#composer-form {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  max-width: 800px;
-}
-
+#composer-form { display: flex; gap: 10px; flex: 1; max-width: 800px; }
 #prompt {
   flex: 1;
   padding: 12px 14px;
@@ -170,9 +126,7 @@ footer.composer {
   background: #333;
   color: #eee;
 }
-
 #prompt::placeholder { color: #aaaaaa; }
-
 #send {
   border: 0;
   padding: 0 18px;
@@ -185,7 +139,7 @@ footer.composer {
 
 /* Overlay de voz */
 #voice-overlay {
-  display: none; /* oculto inicialmente */
+  display: none;
   position: absolute;
   bottom: 80px;
   left: 50%;
@@ -196,17 +150,12 @@ footer.composer {
   border-radius: 12px;
   padding: 16px;
   z-index: 100;
+  display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
 }
-
-.waves {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-}
-
+.waves { display: flex; justify-content: space-between; width: 100%; }
 .waves .bar {
   width: 8px;
   height: 40px;
@@ -214,17 +163,9 @@ footer.composer {
   border-radius: 4px;
   animation: wave 1s infinite;
 }
+@keyframes wave { 0%, 100% { height: 20px; opacity: 0.5; } 50% { height: 40px; opacity: 1; } }
 
-@keyframes wave {
-  0%, 100% { height: 20px; opacity: 0.5; }
-  50% { height: 40px; opacity: 1; }
-}
-
-.voice-actions {
-  display: flex;
-  gap: 16px;
-}
-
+.voice-actions { display: flex; gap: 16px; }
 .voice-actions button {
   border: none;
   border-radius: 8px;
@@ -245,15 +186,10 @@ footer.composer {
   background-color: rgba(0,0,0,0.7);
   z-index: 50;
 }
-
 .modal-content {
   background-color: #111; color: #fff;
-  margin: 10% auto;
-  padding: 20px;
-  width: 80%;
-  border-radius: 12px;
+  margin: 10% auto; padding: 20px; width: 80%; border-radius: 12px;
 }
-
 #close-modal { float: right; cursor: pointer; }
 
 @keyframes fadeIn { from { opacity:0; transform:translateY(4px);} to { opacity:1; transform:translateY(0);} }

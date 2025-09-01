@@ -32,40 +32,23 @@ function escapeHtml(str) {
 
 async function send(text) {
   addBubble("you", text);
-
   try {
     const res = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: text, session_id: sessionId })
     });
-
     const data = await res.json();
-
-    if (data.session_id) {
-      sessionId = data.session_id;
-      localStorage.setItem(SESSION_KEY, sessionId);
-    }
-
-    if (data.reply) {
-      addBubble("ai", data.reply);
-    } else {
-      addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
-    }
-
-  } catch (err) {
-    addBubble("ai", "❌ Error al conectar con el servidor.");
-    console.error(err);
-  }
+    if (data.session_id) { sessionId = data.session_id; localStorage.setItem(SESSION_KEY, sessionId); }
+    if (data.reply) addBubble("ai", data.reply);
+    else addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
+  } catch (err) { addBubble("ai", "❌ Error al conectar con el servidor."); console.error(err); }
 }
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
-  if (text) {
-    send(text);
-    input.value = "";
-  }
+  if (text) { send(text); input.value = ""; }
 });
 
 // Bienvenida aleatoria
@@ -74,17 +57,11 @@ async function showGreeting() {
     const res = await fetch("/greeting");
     const data = await res.json();
     if (data.greeting) addBubble("ai", data.greeting);
-  } catch (err) {
-    addBubble("ai", "¡Hola! Estoy listo para charlar contigo.");
-    console.error(err);
-  }
+  } catch (err) { addBubble("ai", "¡Hola! Estoy listo para charlar contigo."); console.error(err); }
 }
-
 showGreeting();
 
-// -----------------------
 // Micrófono y overlay
-// -----------------------
 let recognition;
 let currentTranscript = "";
 
@@ -96,17 +73,14 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 
   recognition.addEventListener("result", (e) => {
     currentTranscript = e.results[0][0].transcript;
-    // Actualiza visualización de barras de eco-localización
     const bars = overlay.querySelectorAll(".bar");
-    bars.forEach((bar, i) => {
-      const scale = 0.3 + Math.random() * 1;
+    bars.forEach((bar) => {
+      const scale = 0.3 + Math.random();
       bar.style.height = `${scale * 40}px`;
     });
   });
 
-  recognition.addEventListener("end", () => {
-    micBtn.disabled = false;
-  });
+  recognition.addEventListener("end", () => { micBtn.disabled = false; });
 
   micBtn.addEventListener("click", () => {
     overlay.style.display = "flex";
