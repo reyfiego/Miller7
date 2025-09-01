@@ -9,6 +9,9 @@ import os, datetime, random, uuid, sqlite3, secrets
 import smtplib
 from email.message import EmailMessage
 
+# Si usarás reconocimiento de voz
+import speech_recognition as sr  
+
 from db import init_db, DB_PATH
 
 # -------------------------------
@@ -18,15 +21,20 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 SECRET_KEY = os.getenv("SECRET_KEY")
+API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+
+if not API_KEY:
+    raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+# Inicializar base de datos
 init_db()
 
-# -------------------------------
-# PASSWORD HASHING
-# -------------------------------
+# Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
@@ -59,7 +67,6 @@ def send_verification_email(to_email: str, token: str):
     msg['To'] = to_email
     link = f"http://localhost:8000/verify?token={token}"
     msg.set_content(f"Confirma tu correo haciendo clic en el enlace: {link}\nEste enlace expira en 5 minutos.")
-
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
         smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         smtp.send_message(msg)
@@ -84,13 +91,11 @@ def verify_email(token: str, request: Request):
     if not row:
         conn.close()
         return templates.TemplateResponse("verify.html", {"request": request, "error": "Token inválido."})
-
     email, expires_at = row
     expires_at = datetime.datetime.fromisoformat(expires_at)
     if datetime.datetime.now() > expires_at:
         conn.close()
         return templates.TemplateResponse("verify.html", {"request": request, "error": "Token expirado."})
-
     cursor.execute("UPDATE users SET verified=1 WHERE email=?", (email,))
     cursor.execute("DELETE FROM email_verifications WHERE token=?", (token,))
     conn.commit()
@@ -101,101 +106,38 @@ def verify_email(token: str, request: Request):
 # ENDPOINTS DE USUARIOS
 # -------------------------------
 @app.post("/register")
-def register_user(request: Request, username: str = Form(...), email: str = Form(...), password: str = Form(...)):
+async def register_user(user: RegisterModel):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id FROM users WHERE email=? OR username=?", (email, username))
-    if cursor.fetchone():
+    try:
+        hashed_pw = hash_password(user.password)
+        cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
+                       (user.username, user.email, hashed_pw))
+        conn.commit()
+        token = secrets.token_urlsafe(16)
+        expires_at = datetime.datetime.now() + datetime.timedelta(minutes=5)
+        cursor.execute("INSERT INTO email_verifications (email, token, expires_at) VALUES (?, ?, ?)",
+                       (user.email, token, expires_at))
+        conn.commit()
+        send_verification_email(user.email, token)
+        return {"success": True, "message": "Usuario registrado. Revisa tu correo para verificar tu cuenta."}
+    except sqlite3.IntegrityError:
+        return {"success": False, "message": "Usuario o email ya existe."}
+    finally:
         conn.close()
-        return templates.TemplateResponse("register.html", {"request": request, "error": "Usuario o email ya existe."})
-
-    hashed_pw = hash_password(password)
-    cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", (username, email, hashed_pw))
-    conn.commit()
-
-    token = secrets.token_urlsafe(16)
-    expires_at = datetime.datetime.now() + datetime.timedelta(minutes=5)
-    cursor.execute("INSERT INTO email_verifications (email, token, expires_at) VALUES (?, ?, ?)", (email, token, expires_at))
-    conn.commit()
-    conn.close()
-
-    send_verification_email(email, token)
-    return templates.TemplateResponse("register.html", {"request": request, "message": "Revisa tu correo para verificar tu cuenta."})
 
 @app.post("/login")
-def login_user(request: Request, username: str = Form(...), password: str = Form(...)):
+async def login_user(user: LoginModel):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT password, verified FROM users WHERE username=?", (username,))
+    cursor.execute("SELECT password, verified FROM users WHERE username=?", (user.username,))
     result = cursor.fetchone()
     conn.close()
-    if result and verify_password(password, result[0]):
+    if result and verify_password(user.password, result[0]):
         if result[1] == 0:
-            return templates.TemplateResponse("login.html", {"request": request, "error": "Debes verificar tu correo primero."})
-        return RedirectResponse(url="/", status_code=303)
-    else:
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Usuario o contraseña incorrectos."})
-
-# -------------------------------
-# INICIALIZACIÓN
-# -------------------------------
-
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
-SECRET_KEY = os.getenv("SECRET_KEY")
-
-API_KEY = os.getenv("GROQ_API_KEY")
-MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-
-if not API_KEY:
-    raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
-
-app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-groq_client = Groq(api_key=API_KEY)
-
-# -------------------------------
-# CONFIGURACIÓN BASE DE DATOS
-# -------------------------------
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-DB_PATH = "database.db"
-
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
-def verify_password(password: str, hashed: str) -> bool:
-    return pwd_context.verify(password, hashed)
-
-# -------------------------------
-# MODELOS DE USUARIO
-# -------------------------------
-
-class RegisterModel(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
-
-class LoginModel(BaseModel):
-    username: str
-    password: str
-
+            return {"success": False, "message": "Debes verificar tu correo primero."}
+        return {"success": True, "message": "Login exitoso."}
+    return {"success": False, "message": "Usuario o contraseña incorrectos."}
 # -------------------------------
 # ROLE SYSTEM (preciso)
 # -------------------------------
