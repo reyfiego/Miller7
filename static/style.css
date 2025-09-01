@@ -82,7 +82,7 @@ html, body {
   padding: 16px;
   background: radial-gradient(ellipse at center, var(--orange-side) 0%, transparent 80%);
   border-radius: var(--radius);
-  overflow-y: auto; /* Scroll vertical */
+  overflow-y: auto;
 }
 
 /* Scroll personalizado */
@@ -138,7 +138,7 @@ html, body {
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
-/* FORMULARIO */
+/* FORMULARIO CHAT */
 footer.composer {
   display: flex;
   justify-content: center;
@@ -166,6 +166,7 @@ footer.composer {
   color: #111;
 }
 
+/* Overlay de voz */
 #voice-overlay {
   display: none;
   position: absolute;
@@ -182,8 +183,6 @@ footer.composer {
   align-items: center;
   gap: 12px;
 }
-
-/* Botones de overlay */
 .voice-actions { display: flex; gap: 16px; }
 .voice-actions button {
   border: none;
@@ -211,6 +210,58 @@ footer.composer {
 }
 #close-modal { float: right; cursor: pointer; }
 
+/* SECCIONES LOGIN Y REGISTRO */
+.form-section {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 80px);
+}
+.form-section form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #111;
+  padding: 24px;
+  border-radius: 12px;
+  width: 320px;
+}
+.form-section input {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #222;
+  color: #fff;
+}
+.form-section label {
+  color: #fff;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.form-section h2 {
+  text-align: center;
+  color: #fff;
+  margin-bottom: 12px;
+}
+.form-section button {
+  padding: 10px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  color: #111;
+  transition: 0.2s;
+}
+.form-section button:hover { opacity: 0.9; }
+
+/* CAPTCHA */
+.g-recaptcha { display: flex; justify-content: center; margin: 8px 0; }
+
+/* ANIMACIONES */
 @keyframes fadeIn { 
   from { opacity:0; transform:translateY(4px);} 
   to { opacity:1; transform:translateY(0);} 
