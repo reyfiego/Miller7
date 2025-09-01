@@ -5,7 +5,7 @@
   --muted: #dcdcdc;
   --accent1: #f5c542;
   --accent2: #7f5af0;
-  --orange-side: #FFB34766; /* naranja cálido lateral más vivo y difuminado */
+  --orange-side: #FFB34788; /* naranja cálido lateral más vivo */
   --radius: 16px;
 }
 
@@ -23,13 +23,14 @@ html, body {
   height: 100vh;
 }
 
+/* HEADER Y FOOTER */
 .topbar, .composer {
   width: 100vw;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 18px 32px;
-  background: #000;
+  background: #000; /* barra negra */
   position: sticky;
   z-index: 10;
 }
@@ -42,7 +43,7 @@ html, body {
 
 .brand {
   font-weight: 800;
-  font-size: 24px;
+  font-size: 22px;
   color: #fff;
 }
 
@@ -53,8 +54,8 @@ html, body {
 }
 
 .brand img {
-  width: 24px; /* tamaño igual a la fuente de Miller2 */
-  height: 24px;
+  width: 20px; /* tamaño pequeño GIF */
+  height: 20px;
   object-fit: cover;
 }
 
@@ -91,6 +92,7 @@ html, body {
   cursor: pointer;
 }
 
+/* CHAT CENTRALIZADO */
 .chat-wrapper {
   flex: 1;
   display: flex;
@@ -101,12 +103,12 @@ html, body {
 
 .chat {
   flex: 1;
-  max-width: 800px;
+  max-width: 900px; /* un poco más ancho */
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 16px;
-  background: radial-gradient(ellipse at center, #FFA34733 0%, transparent 80%);
+  padding: 24px; /* un poco más de padding */
+  background: radial-gradient(ellipse at center, #FFA34744 0%, transparent 80%);
   border-radius: var(--radius);
   overflow-y: auto;
 }
@@ -118,11 +120,11 @@ html, body {
 .bubble {
   max-width: 75ch;
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 14px 16px; /* más cómodo */
   word-wrap: break-word;
   animation: fadeIn .25s ease;
-  background: #000;
-  color: #fff;
+  background: #000; /* burbujas negras */
+  color: #fff; /* texto blanco */
 }
 
 .bubble.ai { align-self: flex-start; border: 1px solid #222; }
@@ -131,16 +133,17 @@ html, body {
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
+/* BARRA DE TEXTO */
 #composer-form {
   display: flex;
   gap: 10px;
-  max-width: 800px;
+  max-width: 900px; /* igual que chat */
   margin: 0 auto;
 }
 
 #prompt {
   flex: 1;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-radius: 12px;
   border: 1px solid #141414;
   outline: none;
@@ -153,6 +156,7 @@ html, body {
 
 #send { border: 0; padding: 0 18px; border-radius: 12px; font-weight: 700; cursor: pointer; background: linear-gradient(90deg, var(--accent1), var(--accent2)); color: #111; }
 
+/* MODAL INFO */
 .modal {
   display: none;
   position: fixed;
