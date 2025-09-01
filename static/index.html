@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Miller2</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="styles.css">
+<meta charset="UTF-8">
+<title>Miller2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
@@ -35,12 +35,8 @@
 
 <!-- Overlay de voz -->
 <div id="voice-overlay">
-  <div class="waves">
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
-    <div class="bar"></div>
+  <div id="wave-bar">
+    <div class="wave-level"></div>
   </div>
   <div class="voice-actions">
     <button id="confirm">✔️</button>
@@ -48,7 +44,6 @@
   </div>
 </div>
 
-<!-- Modal info -->
 <div id="info-modal" class="modal">
   <div class="modal-content">
     <span id="close-modal">&times;</span>

@@ -8,6 +8,7 @@ const micBtn = document.getElementById("mic-btn");
 const overlay = document.getElementById("voice-overlay");
 const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
+const waveBar = overlay.querySelector(".wave-bar");
 
 // Modal info
 const infoBtn = document.getElementById("info-btn");
@@ -32,6 +33,7 @@ function escapeHtml(str) {
 
 async function send(text) {
   addBubble("you", text);
+  input.value = "";
   try {
     const res = await fetch("/chat", {
       method: "POST",
@@ -39,29 +41,37 @@ async function send(text) {
       body: JSON.stringify({ message: text, session_id: sessionId })
     });
     const data = await res.json();
-    if (data.session_id) { sessionId = data.session_id; localStorage.setItem(SESSION_KEY, sessionId); }
-    if (data.reply) addBubble("ai", data.reply);
-    else addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
-  } catch (err) { addBubble("ai", "❌ Error al conectar con el servidor."); console.error(err); }
+    if (data.session_id) {
+      sessionId = data.session_id;
+      localStorage.setItem(SESSION_KEY, sessionId);
+    }
+    if (data.reply) { addBubble("ai", data.reply); }
+    else { addBubble("ai", "⚠️ No entendí la respuesta del servidor."); }
+  } catch (err) {
+    addBubble("ai", "❌ Error al conectar con el servidor.");
+    console.error(err);
+  }
 }
 
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
-  if (text) { send(text); input.value = ""; }
+  if (text) send(text);
 });
 
-// Bienvenida aleatoria
+// Bienvenida
 async function showGreeting() {
   try {
     const res = await fetch("/greeting");
     const data = await res.json();
     if (data.greeting) addBubble("ai", data.greeting);
-  } catch (err) { addBubble("ai", "¡Hola! Estoy listo para charlar contigo."); console.error(err); }
+  } catch (err) {
+    addBubble("ai", "¡Hola! Estoy listo para charlar contigo.");
+  }
 }
 showGreeting();
 
-// Micrófono y overlay
+// Micrófono con barra horizontal
 let recognition;
 let currentTranscript = "";
 
@@ -71,16 +81,21 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
   recognition.lang = "es-ES";
   recognition.interimResults = true;
 
-  recognition.addEventListener("result", (e) => {
-    currentTranscript = e.results[0][0].transcript;
-    const bars = overlay.querySelectorAll(".bar");
-    bars.forEach((bar) => {
-      const scale = 0.3 + Math.random();
-      bar.style.height = `${scale * 40}px`;
-    });
-  });
+  // Asumiendo que 'recognition' ya está inicializado
+recognition.addEventListener("result", (e) => {
+  currentTranscript = e.results[0][0].transcript;
 
-  recognition.addEventListener("end", () => { micBtn.disabled = false; });
+  // Simula nivel de voz de 0 a 100%
+  const level = Math.min(100, Math.random() * 100);
+  const waveLevelEl = document.querySelector(".wave-level");
+  waveLevelEl.style.width = level + "%";
+});
+
+
+  recognition.addEventListener("end", () => {
+    micBtn.disabled = false;
+    waveBar.style.width = "0%";
+  });
 
   micBtn.addEventListener("click", () => {
     overlay.style.display = "flex";
@@ -91,13 +106,14 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
   confirmBtn.addEventListener("click", () => {
     send(currentTranscript);
     overlay.style.display = "none";
-    input.value = "";
     currentTranscript = "";
+    waveBar.style.width = "0%";
   });
 
   cancelBtn.addEventListener("click", () => {
     overlay.style.display = "none";
     currentTranscript = "";
+    waveBar.style.width = "0%";
   });
 
 } else {
