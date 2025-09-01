@@ -1,11 +1,11 @@
 :root {
-  --bg: #1c1c1c; /* gris oscuro de fondo lateral */
-  --chat-bg: #111111; /* fondo caja de chat */
+  --bg: #1c1c1c; /* gris oscuro lateral */
+  --chat-bg: #111111; /* fondo del chat */
   --text: #fff;
   --muted: #dcdcdc;
   --accent1: #f5c542;
   --accent2: #7f5af0;
-  --orange-side: #FFB34733; /* naranja difuminado en chat */
+  --orange-side: #FFB34766; /* naranja cálido lateral más vivo y difuminado */
   --radius: 16px;
 }
 
@@ -37,7 +37,7 @@ html, body {
 .brand-container {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .brand {
@@ -53,7 +53,7 @@ html, body {
 }
 
 .brand img {
-  width: 24px; /* igual que fuente */
+  width: 24px; /* tamaño igual a la fuente de Miller2 */
   height: 24px;
   object-fit: cover;
 }
@@ -88,6 +88,7 @@ html, body {
   background: transparent;
   border: 2px solid #fff;
   color: #fff;
+  cursor: pointer;
 }
 
 .chat-wrapper {
@@ -95,7 +96,7 @@ html, body {
   display: flex;
   justify-content: center;
   padding: 16px;
-  background: var(--bg);
+  background: linear-gradient(to right, var(--bg) 0%, #2b2b2b 15%, #2b2b2b 85%, var(--bg) 100%);
 }
 
 .chat {
@@ -133,7 +134,8 @@ html, body {
 #composer-form {
   display: flex;
   gap: 10px;
-  flex: 1;
+  max-width: 800px;
+  margin: 0 auto;
 }
 
 #prompt {
