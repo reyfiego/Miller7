@@ -114,7 +114,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 }
 
 // -----------------------
-// Función para reproducir respuesta en voz
+// Función para reproducir respuesta en voz 1.0
 // -----------------------
 function speakReply(text) {
   if ('speechSynthesis' in window) {
