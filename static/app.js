@@ -1,4 +1,3 @@
-// Guardamos/recuperamos un session_id en localStorage para mantener contexto
 const SESSION_KEY = "miller_session_id";
 let sessionId = localStorage.getItem(SESSION_KEY) || null;
 
@@ -51,9 +50,8 @@ async function send(text) {
   }
 }
 
-// 🚀 Aquí evitamos que el formulario refresque la página
 form.addEventListener("submit", (e) => {
-  e.preventDefault(); // <- ESTA LÍNEA ES LA CLAVE
+  e.preventDefault();
   const text = input.value.trim();
   if (text) {
     send(text);
@@ -61,5 +59,18 @@ form.addEventListener("submit", (e) => {
   }
 });
 
-// Mensaje de bienvenida
-addBubble("ai", "¿Qué necesitas hoy? Puedo buscar en Wikipedia, decirte la hora por país o charlar.");
+// 🌟 Bienvenida aleatoria
+async function showGreeting() {
+  try {
+    const res = await fetch("/greeting");
+    const data = await res.json();
+    if (data.greeting) {
+      addBubble("ai", data.greeting);
+    }
+  } catch (err) {
+    addBubble("ai", "¡Hola! Estoy listo para charlar contigo.");
+    console.error(err);
+  }
+}
+
+showGreeting();
