@@ -1,10 +1,10 @@
 :root{
-  --bg: #000;
-  --panel: #0b0b0b;
-  --text: #f7f7f7;
-  --muted: #dcdcdc;
-  --accent1: #f5c542;
-  --accent2: #7f5af0;
+  --bg: #000;      /* fondo negro puro */
+  --panel: #0b0b0b;/* panel casi negro */
+  --text: #f7f7f7; /* texto blanquecino */
+  --muted: #dcdcdc;/* gris MUY claro (casi blanco) */
+  --accent1: #f5c542; /* dorado suave */
+  --accent2: #7f5af0; /* violeta sutil */
   --ai: #111111;
   --you: #0f0f0f;
   --radius: 16px;
@@ -17,7 +17,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, sans-serif;
-  overflow: hidden;
+  overflow: hidden; /* evita scroll doble */
 }
 
 .app {
@@ -41,21 +41,25 @@ body {
 }
 
 .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 800;
   letter-spacing: 0.5px;
   font-size: 20px;
-  display: flex;
-  align-items: center;
+  margin-left: 0;
 }
+
+.brand img {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
 .brand span {
   background: linear-gradient(90deg, var(--accent1), var(--accent2));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-}
-.brand-gif {
-  width: 24px;
-  height: 24px;
-  margin-left: 6px;
 }
 
 .hint { color: var(--muted); font-size: 12px; }
@@ -70,6 +74,7 @@ body {
               radial-gradient(800px 500px at 10% -120px, rgba(245,197,66,0.10), transparent 40%);
 }
 
+/* Scroll minimalista */
 .chat::-webkit-scrollbar {
   width: 6px;
 }
@@ -146,6 +151,7 @@ body {
 #send:hover { opacity: 0.9; }
 #send:active { transform: scale(0.98); }
 
+/* Animación sutil al aparecer */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
