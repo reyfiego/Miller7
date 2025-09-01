@@ -20,16 +20,15 @@ html, body {
   background: var(--bg);
 }
 
-/* CONTENEDOR PRINCIPAL */
 .app {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   height: 100vh;
-  width: 100vw;
 }
 
 /* HEADER */
 .topbar {
+  width: 100vw;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -62,32 +61,67 @@ html, body {
 }
 .btn:hover { opacity: 0.9; }
 
-/* CHAT WRAPPER */
+/* CHAT CENTRAL */
 .chat-wrapper {
-  flex: 1; /* ocupa todo el espacio disponible */
+  flex: 1;
   display: flex;
   justify-content: center;
   padding: 16px;
-  background: var(--bg);
+  background: linear-gradient(to right, var(--bg) 0%, #2b2b2b 15%, #2b2b2b 85%, var(--bg) 100%);
+  overflow: hidden;
 }
 
-/* CHAT */
 .chat {
+  flex: 1;
+  width: 100%;
+  max-width: 800px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  width: 100%;
-  max-width: 800px;
+  padding: 16px;
   background: radial-gradient(ellipse at center, var(--orange-side) 0%, transparent 80%);
   border-radius: var(--radius);
-  padding: 16px;
-  overflow-y: auto; /* scroll vertical */
+  overflow-y: auto; /* Scroll vertical */
 }
 
 /* Scroll personalizado */
 .chat::-webkit-scrollbar { width: 8px; }
 .chat::-webkit-scrollbar-thumb { background: var(--scroll-bg); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
+
+/* Overlay de voz horizontal */
+#wave-bar {
+  width: 100%;
+  height: 16px;
+  background: #111;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.wave-level {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(to right, red, green);
+  transition: width 0.1s ease;
+}
+
+/* Botón micrófono */
+.btn-mic {
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
+  border: none;
+  color: #111;
+  padding: 0 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+}
+.btn-mic:hover { opacity: 0.85; }
 
 /* BURBUJAS */
 .bubble {
@@ -104,19 +138,14 @@ html, body {
 .bubble a { color: var(--accent2); text-decoration: none; }
 .bubble a:hover { text-decoration: underline; }
 
-/* FOOTER COMPOSER - siempre abajo */
+/* FORMULARIO */
 footer.composer {
   display: flex;
   justify-content: center;
   padding: 16px;
   background: #111;
 }
-#composer-form {
-  display: flex;
-  gap: 10px;
-  width: 100%;
-  max-width: 800px;
-}
+#composer-form { display: flex; gap: 10px; flex: 1; max-width: 800px; }
 #prompt {
   flex: 1;
   padding: 12px 14px;
@@ -137,7 +166,6 @@ footer.composer {
   color: #111;
 }
 
-/* Overlay de voz */
 #voice-overlay {
   display: none;
   position: absolute;
@@ -154,6 +182,8 @@ footer.composer {
   align-items: center;
   gap: 12px;
 }
+
+/* Botones de overlay */
 .voice-actions { display: flex; gap: 16px; }
 .voice-actions button {
   border: none;
@@ -181,59 +211,8 @@ footer.composer {
 }
 #close-modal { float: right; cursor: pointer; }
 
-/* LOGIN Y REGISTRO */
-.form-section {
-  display: none;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: calc(100vh - 80px);
-}
-.form-section form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: #111;
-  padding: 24px;
-  border-radius: 12px;
-  width: 320px;
-}
-.form-section input {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid #333;
-  background: #222;
-  color: #fff;
-}
-.form-section label {
-  color: #fff;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.form-section h2 {
-  text-align: center;
-  color: #fff;
-  margin-bottom: 12px;
-}
-.form-section button {
-  padding: 10px;
-  border: none;
-  border-radius: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  background: linear-gradient(90deg, var(--accent1), var(--accent2));
-  color: #111;
-  transition: 0.2s;
-}
-.form-section button:hover { opacity: 0.9; }
-
-/* CAPTCHA */
-.g-recaptcha { display: flex; justify-content: center; margin: 8px 0; }
-
-/* ANIMACIONES */
 @keyframes fadeIn { 
   from { opacity:0; transform:translateY(4px);} 
   to { opacity:1; transform:translateY(0);} 
 }
+
