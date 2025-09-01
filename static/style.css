@@ -6,12 +6,11 @@
   --accent1: #f5c542;
   --accent2: #7f5af0;
   --orange-side: #FFB34733; /* naranja difuminado en chat */
-  --orange-side-solid: #FFB347CC; /* naranja sólido para input */
+  --orange-side-solid: #FFB347CC; /* naranja cálido sólido para input */
   --radius: 16px;
 }
 
 * { box-sizing: border-box; }
-
 html, body {
   height: 100%;
   margin: 0;
@@ -26,7 +25,7 @@ html, body {
 }
 
 /* HEADER */
-.topbar, .composer {
+.topbar {
   width: 100vw;
   display: flex;
   align-items: center;
@@ -67,7 +66,7 @@ html, body {
   gap: 12px;
 }
 
-.btn, #info-btn {
+.btn {
   cursor: pointer;
   padding: 8px 16px;
   border-radius: 12px;
@@ -76,12 +75,22 @@ html, body {
   background: linear-gradient(90deg, var(--accent1), var(--accent2));
   color: #111;
   transition: 0.2s;
+}
+
+.btn:hover { opacity: 0.9; }
+
+/* Info button circular */
+#info-btn {
+  width: 36px;
+  height: 36px;
   display: flex;
   justify-content: center;
   align-items: center;
+  border-radius: 50%;
+  font-weight: bold;
+  font-size: 18px;
+  border: 2px solid #fff;
 }
-
-.btn:hover, #info-btn:hover { opacity: 0.9; }
 
 /* CHAT CENTRAL */
 .chat-wrapper {
@@ -95,17 +104,17 @@ html, body {
 .chat {
   flex: 1;
   max-width: 800px;
+  max-height: 500px; /* altura limitada con scroll */
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px;
   background: radial-gradient(ellipse at center, var(--orange-side) 0%, transparent 80%);
   border-radius: var(--radius);
-  overflow-y: auto;  /* scroll vertical solo del chat */
-  scrollbar-width: thin;
-  scrollbar-color: var(--accent2) var(--chat-bg);
+  overflow-y: auto;
 }
 
+/* SCROLLBAR */
 .chat::-webkit-scrollbar { width: 6px; }
 .chat::-webkit-scrollbar-thumb { background: var(--accent2); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
@@ -142,10 +151,8 @@ html, body {
   border-radius: 12px;
   border: 1px solid #141414;
   outline: none;
-  background: #333333; /* grisáceo */
-  color: #f0f0f0; /* texto claro */
-  font-size: 15px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+  background: #333; /* gris oscuro */
+  color: #eee; /* texto claro */
 }
 
 #prompt::placeholder { color: #aaaaaa; }
@@ -160,7 +167,7 @@ html, body {
   color: #111;
 }
 
-/* GIF de Mac Miller */
+/* GIF de Mac Miller (ejemplo) */
 .macmiller-gif {
   width: 60px;
   height: 60px;

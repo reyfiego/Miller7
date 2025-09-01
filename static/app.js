@@ -9,6 +9,7 @@ const input = document.getElementById("prompt");
 const infoBtn = document.getElementById("info-btn");
 const modal = document.getElementById("info-modal");
 const closeModal = document.getElementById("close-modal");
+
 infoBtn.addEventListener("click", () => { modal.style.display = "block"; });
 closeModal.addEventListener("click", () => { modal.style.display = "none"; });
 window.addEventListener("click", e => { if(e.target===modal){ modal.style.display="none"; } });
@@ -16,11 +17,7 @@ window.addEventListener("click", e => { if(e.target===modal){ modal.style.displa
 function addBubble(sender, text, type = "reply", url = null) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
-  if (type === "link" && url) {
-    bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> <a href="${url}" target="_blank" rel="noopener">${text}</a>`;
-  } else {
-    bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
-  }
+  bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
   chatEl.appendChild(bubble);
   chatEl.scrollTop = chatEl.scrollHeight;
 }
@@ -67,14 +64,12 @@ form.addEventListener("submit", (e) => {
   }
 });
 
-// 🌟 Bienvenida aleatoria
+// Bienvenida aleatoria
 async function showGreeting() {
   try {
     const res = await fetch("/greeting");
     const data = await res.json();
-    if (data.greeting) {
-      addBubble("ai", data.greeting);
-    }
+    if (data.greeting) addBubble("ai", data.greeting);
   } catch (err) {
     addBubble("ai", "¡Hola! Estoy listo para charlar contigo.");
     console.error(err);
