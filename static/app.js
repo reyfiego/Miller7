@@ -84,8 +84,11 @@ showGreeting();
 // -----------------------
 const micBtn = document.createElement("button");
 micBtn.textContent = "🎤";
+micBtn.type = "button"; // Para que no dispare submit
 micBtn.className = "btn-mic";
-document.querySelector(".composer").insertBefore(micBtn, document.getElementById("send"));
+
+// Insertarlo justo a la izquierda del botón enviar
+document.getElementById("send").parentNode.insertBefore(micBtn, document.getElementById("send"));
 
 let recognition;
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {

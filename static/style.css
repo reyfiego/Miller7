@@ -1,4 +1,4 @@
-  :root {
+:root {
   --bg: #1c1c1c;
   --chat-bg: #111111;
   --text: #fff;
@@ -8,7 +8,7 @@
   --orange-side: #FFB34733;
   --orange-side-solid: #FFB347CC;
   --radius: 16px;
-  --scroll-bg: rgba(245, 197, 66, 0.2); /* color difuminado para scroll */
+  --scroll-bg: rgba(245, 197, 66, 0.35); /* color dorado más marcado */
 }
 
 * { box-sizing: border-box; }
@@ -104,22 +104,24 @@ html, body {
   overflow-y: auto;
 }
 
+/* Scroll personalizado */
 .chat::-webkit-scrollbar { width: 8px; }
 .chat::-webkit-scrollbar-thumb { background: var(--scroll-bg); border-radius: 10px; }
 .chat::-webkit-scrollbar-track { background: var(--chat-bg); }
 
 /* Botón de micrófono */
 .btn-mic {
-  background-color: var(--accent1);
+  background: linear-gradient(90deg, var(--accent1), var(--accent2));
   border: none;
   color: #111;
   padding: 0 12px;
-  border-radius: var(--radius);
+  border-radius: 12px;
   cursor: pointer;
   font-size: 18px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: 0.2s;
 }
 
 .btn-mic:hover {
