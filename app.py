@@ -13,7 +13,7 @@ from email.message import EmailMessage
 # Si usarás reconocimiento de voz
 import speech_recognition as sr  
 
-from db import init_db, DB_PATH
+from db import init_db, DB_PATH, create_session, save_message, get_session_messages
 
 # -------------------------------
 # INICIALIZACIÓN
@@ -117,7 +117,7 @@ async def register_user(user: RegisterModel):
                        (user.username, user.email, hashed_pw))
         conn.commit()
         token = secrets.token_urlsafe(16)
-        expires_at = datetime.datetime.now() + datetime.timedelta(minutes=5)
+        expires_at = (datetime.datetime.now() + datetime.timedelta(minutes=5)).isoformat()
         cursor.execute("INSERT INTO email_verifications (email, token, expires_at) VALUES (?, ?, ?)",
                        (user.email, token, expires_at))
         conn.commit()
@@ -140,6 +140,7 @@ async def login_user(user: LoginModel):
             return {"success": False, "message": "Debes verificar tu correo primero."}
         return {"success": True, "message": "Login exitoso."}
     return {"success": False, "message": "Usuario o contraseña incorrectos."}
+
 # -------------------------------
 # ROLE SYSTEM (preciso)
 # -------------------------------
@@ -290,14 +291,6 @@ def get_random_greeting() -> str:
     return msg if msg else ""
 
 # -------------------------------
-# MODELO DE ENTRADA
-# -------------------------------
-
-class Message(BaseModel):
-    message: str
-    session_id: str | None = None
-
-# -------------------------------
 # FRASES CONTEXTUALES
 # -------------------------------
 
@@ -322,78 +315,17 @@ FRASES_CONTEXTUALES = [
     }
 ]
 
+def contexto_coincide(user_text: str, contexto: str) -> bool:
+    return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
+
 # -------------------------------
 # MEMORIA DE SESIONES
 # -------------------------------
 
 session_memory = {}
 
-def contexto_coincide(user_text: str, contexto: str) -> bool:
-    return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
-
 # -------------------------------
-# ENDPOINTS DE USUARIOS
-# -------------------------------
-
-@app.post("/register")
-async def register_user(user: RegisterModel):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    try:
-        hashed_pw = hash_password(user.password)
-        cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-                       (user.username, user.email, hashed_pw))
-        conn.commit()
-        return {"success": True, "message": "Usuario registrado correctamente."}
-    except sqlite3.IntegrityError:
-        return {"success": False, "message": "Usuario o email ya existe."}
-    finally:
-        conn.close()
-
-@app.post("/login")
-async def login_user(user: LoginModel):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT password FROM users WHERE username = ?", (user.username,))
-    result = cursor.fetchone()
-    conn.close()
-    if result and verify_password(user.password, result[0]):
-        return {"success": True, "message": "Login exitoso."}
-    else:
-        return {"success": False, "message": "Usuario o contraseña incorrectos."}
-
-# -------------------------------
-# RUTAS PRINCIPALES
-# -------------------------------
-
-@app.get("/")
-async def root():
-    return FileResponse("static/index.html")
-
-@app.get("/hora")
-async def hora():
-    now = datetime.datetime.now().strftime("%H:%M:%S")
-    return {"reply": f"Son las {now}, pero recuerda… el tiempo nunca se detiene ⏳."}
-
-@app.get("/saludo/{nombre}")
-async def saludo(nombre: str):
-    return {"reply": f"Hey {nombre}, qué bueno que estés aquí ✨."}
-
-@app.get("/random")
-async def random_phrase():
-    frases = [
-        "Hay cosas que jamás cambian, pero aún así, hay momentos que hacen que todo valga la pena.",
-        "A veces el silencio dice más que mil palabras.",
-        "El mundo puede sentirse pesado, pero incluso las estrellas nacen en la oscuridad."
-    ]
-    return {"reply": random.choice(frases)}
-
-@app.get("/greeting")
-async def greeting():
-    return {"greeting": get_random_greeting()}
-
-# -------------------------------
-# ENDPOINT DE CHAT
+# ENDPOINTS DE CHAT
 # -------------------------------
 
 @app.post("/chat")
@@ -407,30 +339,14 @@ async def chat_endpoint(msg: Message):
             status_code=400
         )
 
-    if session_id not in session_memory:
-        session_memory[session_id] = {"history": [], "user_data": {}}
-    session = session_memory[session_id]
+    # Crear sesión en DB si no existe
+    create_session(session_id)
 
-    session['history'].append({"role": "user", "content": user_text})
-
-    # Detectar nombre
-    if "me llamo" in user_text.lower() or "soy" in user_text.lower():
-        posibles_nombres = [palabra.strip() for palabra in user_text.split() if palabra.istitle()]
-        if posibles_nombres:
-            session['user_data']['name'] = posibles_nombres[0]
+    # Recuperar historial guardado en DB
+    history = get_session_messages(session_id)
+    history.append({"role": "user", "content": user_text})
 
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-
-    if session['user_data'].get("name"):
-        system_messages.append({
-            "role": "system",
-            "content": f"El usuario se llama {session['user_data']['name']}. Usa su nombre en las respuestas cuando sea natural."
-        })
-
-    system_messages.append({
-        "role": "system",
-        "content": "Responde con estilo cercano, humano, empático y fluido. Evita insistir y no satures de información."
-    })
 
     # Aplicar frases contextuales probabilísticamente
     for frase in FRASES_CONTEXTUALES:
@@ -443,7 +359,7 @@ async def chat_endpoint(msg: Message):
                 "content": f"Inspírate en esta frase para responder: {contenido}"
             })
 
-    messages_for_groq = system_messages + session['history']
+    messages_for_groq = system_messages + history
 
     try:
         response = groq_client.chat.completions.create(
@@ -460,7 +376,10 @@ async def chat_endpoint(msg: Message):
         if user_text.lower() in ["no", "no gracias", "prefiero no"]:
             reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
-        session['history'].append({"role": "assistant", "content": reply_text})
+        # Guardar mensajes en DB
+        save_message(session_id, "user", user_text)
+        save_message(session_id, "assistant", reply_text)
+
         return {"reply": reply_text, "session_id": session_id}
 
     except Exception as e:
@@ -513,4 +432,21 @@ async def estado():
 
 @app.post("/api/command")
 async def command(msg: Message):
-    return await chat_endpoint(msg)
+    return await chat_endpoint(msg) 
+
+# -------------------------------
+# RUTAS PRINCIPALES
+# -------------------------------
+
+@app.get("/")
+async def root():
+    return FileResponse("static/index.html")
+
+@app.get("/hora")
+async def hora():
+    now = datetime.datetime.now().strftime("%H:%M:%S")
+    return {"reply": f"Son las {now}, pero recuerda… el tiempo nunca se detiene ⏳."}
+
+@app.get("/saludo/{nombre}")
+async def saludo(nombre: str):
+    return {"reply": f"Hey {nombre}, qué bueno que estés aquí ✨."}
