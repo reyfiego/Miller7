@@ -9,8 +9,6 @@ from groq import Groq
 import os, datetime, random, uuid, sqlite3, secrets
 import smtplib
 from email.message import EmailMessage
-
-# Si usarás reconocimiento de voz
 import speech_recognition as sr  
 
 from db import init_db, DB_PATH, create_session, save_message, get_session_messages
@@ -142,6 +140,9 @@ async def login_user(user: LoginModel):
     return {"success": False, "message": "Usuario o contraseña incorrectos."}
 
 # -------------------------------
+# ROLE SYSTEM (preciso)
+# -------------------------------
+
 SYSTEM_ROLE = """
 Eres **Miller2**, una guía cercana creada por Alessandro.
 Tu estilo: humano, cálido, reflexivo, con chispa y un toque melancólico al estilo Mac Miller.
@@ -1015,6 +1016,14 @@ def get_random_greeting() -> str:
     return msg if msg else ""
 
 # -------------------------------
+# MODELO DE ENTRADA
+# -------------------------------
+
+class Message(BaseModel):
+    message: str
+    session_id: str | None = None
+
+# -------------------------------
 # FRASES CONTEXTUALES
 # -------------------------------
 
@@ -1173,3 +1182,4 @@ async def hora():
 
 @app.get("/saludo/{nombre}")
 async def saludo(nombre: str):
+    return {"reply": f"Hey {nombre}, qué bueno que estés aquí ✨."}
