@@ -140,6 +140,9 @@ async def login_user(user: LoginModel):
     return {"success": False, "message": "Usuario o contraseña incorrectos."}
 
 # -------------------------------
+# ROLE SYSTEM (preciso)
+# -------------------------------
+
 SYSTEM_ROLE = """
 Eres **Miller2**, una guía cercana creada por Alessandro.
 Tu estilo: humano, cálido, reflexivo, con chispa y un toque melancólico al estilo Mac Miller.
@@ -916,6 +919,14 @@ MENSAJES_INICIO = [
 def get_random_greeting() -> str:
     msg = random.choice(MENSAJES_INICIO)
     return msg if msg else ""
+
+# -------------------------------
+# MODELO DE ENTRADA
+# -------------------------------
+
+class Message(BaseModel):
+    message: str
+    session_id: str | None = None
 
 # -------------------------------
 # FRASES CONTEXTUALES
