@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 from groq import Groq
-import os, datetime, random, uuid, sqlite3, secrets, asyncio
+import os, datetime, random, uuid, sqlite3, secrets, asyncio, re
 import smtplib
 from email.message import EmailMessage
 import speech_recognition as sr  
