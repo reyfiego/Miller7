@@ -356,47 +356,38 @@ def contexto_coincide(user_text: str, contexto: str) -> bool:
     return any(p.lower() in user_text.lower() for p in palabras)
 
 # -------------------------------
-# FUNCIONES DE PROCESAMIENTO DE TEXTO
+# FUNCIONES DE BURBUJAS ALEATORIAS
 # -------------------------------
-def dividir_burbujas(texto: str) -> list[str]:
+def dividir_burbujas_aleatorio(texto: str) -> list[str]:
+    texto = texto.replace("...", "…")
+    frases = re.split(r'(?<=[.?!…])\s+', texto)
     burbujas = []
-    texto = texto.replace("…", "...")
-    partes = texto.split("\n\n")
-    for parte in partes:
-        if not parte.strip():
-            continue
-        subpartes = [b.strip() for b in parte.split(" | ") if b.strip()]
-        burbujas.extend(subpartes)
+    temp = ""
+    for frase in frases:
+        if random.random() < 0.5 or frase.endswith("?"):
+            if temp:
+                burbujas.append(temp.strip())
+            temp = frase
+        else:
+            temp = (temp + " " + frase).strip()
+    if temp:
+        burbujas.append(temp.strip())
     return burbujas
 
-def filtrar_preguntas(burbujas: list[str]) -> list[str]:
-    resultado = []
-    preguntas_consecutivas = 0
-    for b in burbujas:
-        if b.endswith("?"):
-            preguntas_consecutivas += 1
-            if preguntas_consecutivas > 1:
-                b = b.rstrip("?") + "."
-        else:
-            preguntas_consecutivas = 0
-        resultado.append(b)
-    return resultado
-
-def enriquecer_burbujas(burbujas: list[str]) -> list[str]:
+def enriquecer_burbujas_aleatorio(burbujas: list[str]) -> list[str]:
     resultado = []
     for b in burbujas:
         resultado.append(b)
-        if random.random() < 0.3:
-            opcion = random.choice([
+        if random.random() < 0.3 and not b.endswith("?"):
+            resultado.append(random.choice([
                 "...",
                 "No siempre tengo todas las palabras.",
                 "A veces solo puedo escuchar.",
                 "Estoy aquí, aunque no siempre sepa qué decir.",
-                "..."
-            ])
-            resultado.append(opcion)
+                "…"
+            ]))
     if len(resultado) > 5:
-        resultado = resultado[:5]
+        resultado = resultado[:random.randint(2, 5)]
     return resultado
 
 # -------------------------------
@@ -455,7 +446,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         presence_penalty=0.9
                     )
                     reply_text = response.choices[0].message.content.strip()
-                    burbujas = enriquecer_burbujas(filtrar_preguntas(dividir_burbujas(reply_text)))
+                    burbujas = enriquecer_burbujas_aleatorio(dividir_burbujas_aleatorio(reply_text))
                     for b in burbujas:
                         await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                         await asyncio.sleep(random.uniform(0.5, 1.5))
@@ -511,12 +502,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = enriquecer_burbujas(filtrar_preguntas(dividir_burbujas(reply_text)))
+                burbujas = enriquecer_burbujas_aleatorio(dividir_burbujas_aleatorio(reply_text))
                 for b in burbujas:
                     await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                     await asyncio.sleep(random.uniform(0.5, 1.5))
 
-                # Follow-up contextuales
                 if random.random() < 0.3:
                     context_msgs = [f["texto"] for f in FRASES_CONTEXTUALES if contexto_coincide(user_text, f["contexto"])]
                     if context_msgs:
