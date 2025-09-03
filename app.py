@@ -371,8 +371,49 @@ def contexto_coincide(user_text: str, contexto: str) -> bool:
 
 session_memory = {}
 
+
 # -------------------------------
-# ENDPOINTS DE CHAT
+# FUNCIONES DE PROCESAMIENTO DE TEXTO
+# -------------------------------
+
+def dividir_burbujas(texto: str) -> list[str]:
+    """
+    Divide la respuesta del modelo en burbujas más humanas.
+    Separa por saltos de línea, puntos largos o separadores especiales.
+    """
+    burbujas = []
+    # Unificar "…" en "..." para consistencia
+    texto = texto.replace("…", "...")
+    # Separar por dobles saltos de línea
+    partes = texto.split("\n\n")
+    for parte in partes:
+        if not parte.strip():
+            continue
+        # También dividir por " | " si el modelo lo usa como separador
+        subpartes = [b.strip() for b in parte.split(" | ") if b.strip()]
+        burbujas.extend(subpartes)
+    return burbujas
+
+
+def filtrar_preguntas(burbujas: list[str]) -> list[str]:
+    """
+    Reduce la cantidad de preguntas seguidas.
+    Mantiene máximo 1 consecutiva.
+    """
+    resultado = []
+    preguntas_consecutivas = 0
+    for b in burbujas:
+        if b.endswith("?"):
+            preguntas_consecutivas += 1
+            if preguntas_consecutivas > 1:
+                # Si ya hubo una pregunta antes, convierte a afirmación suave
+                b = b.rstrip("?") + "."
+        else:
+            preguntas_consecutivas = 0
+        resultado.append(b)
+    return resultado
+# -------------------------------
+# ENDPOINT DE CHAT
 # -------------------------------
 
 @app.post("/chat")
@@ -382,7 +423,7 @@ async def chat_endpoint(msg: Message):
 
     if not user_text:
         return JSONResponse(
-            {"reply": "¿Podrías decirme algo para responderte?", "session_id": session_id},
+            {"reply": ["¿Podrías decirme algo para responderte?"], "session_id": session_id},
             status_code=400
         )
 
@@ -420,14 +461,20 @@ async def chat_endpoint(msg: Message):
         )
         reply_text = response.choices[0].message.content.strip()
 
+        # Convertir en burbujas y filtrar
+        burbujas = dividir_burbujas(reply_text)
+        burbujas = filtrar_preguntas(burbujas)
+
+        # Caso especial: si usuario dice "no"
         if user_text.lower() in ["no", "no gracias", "prefiero no"]:
-            reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
+            burbujas = ["Está bien, no insistiré.", "Solo dime si quieres hablar de otra cosa."]
 
         # Guardar mensajes en DB
         save_message(session_id, "user", user_text)
-        save_message(session_id, "assistant", reply_text)
+        for b in burbujas:
+            save_message(session_id, "assistant", b)
 
-        return {"reply": reply_text, "session_id": session_id}
+        return {"reply": burbujas, "session_id": session_id}
 
     except Exception as e:
         print("Error en /chat:", repr(e))
@@ -436,8 +483,7 @@ async def chat_endpoint(msg: Message):
             "La vida puede sentirse como una canción rota.",
             "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
         ]
-        return {"reply": random.choice(frases_backup), "session_id": session_id, "error": "fallback"}
-
+        return {"reply": [random.choice(frases_backup)], "session_id": session_id, "error": "fallback"}
 # -------------------------------
 # ENDPOINT DE AUDIO
 # -------------------------------
