@@ -410,25 +410,30 @@ async def chat_endpoint(msg: Message):
             status_code=400
         )
 
-    create_session(session_id)
-    history = get_session_messages(session_id)
-    history.append({"role": "user", "content": user_text})
-
-    system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-
-    for frase in FRASES_CONTEXTUALES:
-        if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
-            contenido = frase["texto"]
-            if frase.get("primera_persona"):
-                contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
-            system_messages.append({
-                "role": "system",
-                "content": f"Inspírate en esta frase para responder: {contenido}"
-            })
-
-    messages_for_groq = system_messages + history
-
     try:
+        # Crear sesión si no existe
+        create_session(session_id)
+        # Obtener historial
+        history = get_session_messages(session_id)
+        if not isinstance(history, list):
+            history = []
+        history.append({"role": "user", "content": user_text})
+
+        system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+
+        for frase in FRASES_CONTEXTUALES:
+            if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
+                contenido = frase["texto"]
+                if frase.get("primera_persona"):
+                    contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
+                system_messages.append({
+                    "role": "system",
+                    "content": f"Inspírate en esta frase para responder: {contenido}"
+                })
+
+        messages_for_groq = system_messages + history
+
+        # Llamada a Groq
         response = groq_client.chat.completions.create(
             model=MODEL_ID,
             messages=messages_for_groq,
@@ -439,25 +444,24 @@ async def chat_endpoint(msg: Message):
             presence_penalty=0.8
         )
 
-        # --- DEPURACIÓN ---
         print("Respuesta GROQ completa:", response)
 
-        # --- FIX: acceder al contenido de manera segura ---
         choice = response.choices[0]
-        if isinstance(choice.message, dict):
-            reply_text = choice.message.get("content", "").strip()
-        else:
-            reply_text = getattr(choice.message, "content", "").strip()
+        reply_text = ""
+        if hasattr(choice, "message"):
+            msg_resp = choice.message
+            if isinstance(msg_resp, dict):
+                reply_text = msg_resp.get("content", "").strip()
+            else:
+                reply_text = getattr(msg_resp, "content", "").strip()
 
-        # Convertir en burbujas y filtrar
         burbujas = dividir_burbujas(reply_text)
         burbujas = filtrar_preguntas(burbujas)
 
-        # Caso especial: si usuario dice "no"
         if user_text.lower() in ["no", "no gracias", "prefiero no"]:
             burbujas = ["Está bien, no insistiré.", "Solo dime si quieres hablar de otra cosa."]
 
-        # Guardar mensajes en DB
+        # Guardar mensajes
         save_message(session_id, "user", user_text)
         for b in burbujas:
             save_message(session_id, "assistant", b)
@@ -466,26 +470,40 @@ async def chat_endpoint(msg: Message):
 
     except Exception as e:
         print("Error en /chat:", repr(e))
+        traceback.print_exc()
         frases_backup = [
             "El silencio también tiene cosas que decir.",
             "La vida puede sentirse como una canción rota.",
             "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
         ]
-        return {"reply": [random.choice(frases_backup)], "session_id": session_id, "error": "fallback"}
+        return JSONResponse(
+            {"reply": [random.choice(frases_backup)], "session_id": session_id, "error": "fallback"},
+            status_code=500
+        )
 
-# -------------------------------
-# RUTAS PRINCIPALES
-# -------------------------------
-
-@app.get("/")
-async def root():
-    return FileResponse("static/index.html")
-
-@app.get("/hora")
-async def hora():
-    now = datetime.datetime.now().strftime("%H:%M:%S")
-    return {"reply": f"Son las {now}, pero recuerda… el tiempo nunca se detiene ⏳."}
-
-@app.get("/saludo/{nombre}")
-async def saludo(nombre: str):
-    return {"reply": f"Hey {nombre}, qué bueno que estés aquí ✨."}
+# Puedes agregar un endpoint de prueba para aislar problemas con Groq
+@app.post("/chat_test")
+async def chat_test(msg: Message):
+    try:
+        response = groq_client.chat.completions.create(
+            model=MODEL_ID,
+            messages=[
+                {"role": "system", "content": SYSTEM_ROLE},
+                {"role": "user", "content": msg.message}
+            ],
+            max_tokens=100,
+            temperature=0.7
+        )
+        choice = response.choices[0]
+        reply_text = ""
+        if hasattr(choice, "message"):
+            msg_resp = choice.message
+            if isinstance(msg_resp, dict):
+                reply_text = msg_resp.get("content", "").strip()
+            else:
+                reply_text = getattr(msg_resp, "content", "").strip()
+        return {"reply": [reply_text], "session_id": msg.session_id or str(uuid.uuid4())}
+    except Exception as e:
+        print("Error en /chat_test:", repr(e))
+        traceback.print_exc()
+        return JSONResponse({"reply": ["❌ Error al conectar con el servidor."], "session_id": msg.session_id or str(uuid.uuid4())}, status_code=500)
