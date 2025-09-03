@@ -1,5 +1,9 @@
 const SESSION_KEY = "miller_session_id";
-let sessionId = localStorage.getItem(SESSION_KEY) || null;
+let sessionId = localStorage.getItem(SESSION_KEY);
+if (!sessionId) {
+  sessionId = crypto.randomUUID();
+  localStorage.setItem(SESSION_KEY, sessionId);
+}
 
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
@@ -76,7 +80,31 @@ window.addEventListener("click", (e) => {
   if (e.target === modal) closeElement(modal);
 });
 
-// --- Chat ---
+// --- Chat con WebSocket ---
+const ws = new WebSocket(`ws://${window.location.host}/ws/chat/${sessionId}`);
+
+ws.onopen = () => {
+  console.log("Conectado al WebSocket");
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  if (data.reply) {
+    // data.reply es un array de burbujas
+    data.reply.forEach(burbuja => addBubble("ai", burbuja));
+  }
+};
+
+ws.onclose = () => {
+  console.log("Conexión cerrada");
+  addBubble("ai", "⚠️ La conexión con el servidor se ha cerrado.");
+};
+
+ws.onerror = (err) => {
+  console.error("Error en WebSocket:", err);
+  addBubble("ai", "❌ Error en la conexión con el servidor.");
+};
+
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -89,28 +117,13 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-async function send(text) {
+function send(text) {
   addBubble("you", text);
   input.value = "";
-  try {
-    const res = await fetch("/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, session_id: sessionId }),
-    });
-    const data = await res.json();
-    if (data.session_id) {
-      sessionId = data.session_id;
-      localStorage.setItem(SESSION_KEY, sessionId);
-    }
-    if (data.reply) {
-      addBubble("ai", data.reply);
-    } else {
-      addBubble("ai", "⚠️ No entendí la respuesta del servidor.");
-    }
-  } catch (err) {
-    addBubble("ai", "❌ Error al conectar con el servidor.");
-    console.error(err);
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: text }));
+  } else {
+    addBubble("ai", "❌ No hay conexión con el servidor.");
   }
 }
 
@@ -119,18 +132,6 @@ form.addEventListener("submit", (e) => {
   const text = input.value.trim();
   if (text) send(text);
 });
-
-// --- Mensaje de bienvenida ---
-async function showGreeting() {
-  try {
-    const res = await fetch("/greeting");
-    const data = await res.json();
-    if (data.greeting) addBubble("ai", data.greeting);
-  } catch (err) {
-    addBubble("ai", "¡Hola! Estoy listo para charlar contigo.");
-  }
-}
-showGreeting();
 
 // --- Micrófono con barra horizontal ---
 let recognition;
