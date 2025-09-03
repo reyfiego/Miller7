@@ -48,7 +48,7 @@ function closeElement(element) {
     if (element === loginPanel || element === registerPanel) {
       panelOverlay.classList.remove("active");
     }
-  }, 300); // Duración de la animación en ms (debe coincidir con CSS)
+  }, 300);
 }
 
 // Abrir panel login
@@ -81,7 +81,8 @@ window.addEventListener("click", (e) => {
 });
 
 // --- Chat con WebSocket ---
-const ws = new WebSocket(`ws://${window.location.host}/ws/chat/${sessionId}`);
+const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
 ws.onopen = () => {
   console.log("Conectado al WebSocket");
@@ -90,7 +91,6 @@ ws.onopen = () => {
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
   if (data.reply) {
-    // data.reply es un array de burbujas
     data.reply.forEach(burbuja => addBubble("ai", burbuja));
   }
 };

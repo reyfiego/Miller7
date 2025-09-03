@@ -45,12 +45,11 @@ def verify_password(password: str, hashed: str) -> bool:
 # MODELOS
 # -------------------------------
 class RegisterModel(BaseModel):
-    username: str
     email: EmailStr
     password: str
 
 class LoginModel(BaseModel):
-    username: str
+    email: EmailStr
     password: str
 
 class Message(BaseModel):
@@ -111,8 +110,8 @@ async def register_user(user: RegisterModel):
     cursor = conn.cursor()
     try:
         hashed_pw = hash_password(user.password)
-        cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)",
-                       (user.username, user.email, hashed_pw))
+        cursor.execute("INSERT INTO users (email, password) VALUES (?, ?)",
+                       (user.email, hashed_pw))
         conn.commit()
         token = secrets.token_urlsafe(16)
         expires_at = (datetime.datetime.now() + datetime.timedelta(minutes=5)).isoformat()
@@ -122,7 +121,7 @@ async def register_user(user: RegisterModel):
         send_verification_email(user.email, token)
         return {"success": True, "message": "Usuario registrado. Revisa tu correo para verificar tu cuenta."}
     except sqlite3.IntegrityError:
-        return {"success": False, "message": "Usuario o email ya existe."}
+        return {"success": False, "message": "Email ya existe."}
     finally:
         conn.close()
 
@@ -130,14 +129,14 @@ async def register_user(user: RegisterModel):
 async def login_user(user: LoginModel):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT password, verified FROM users WHERE username=?", (user.username,))
+    cursor.execute("SELECT password, verified FROM users WHERE email=?", (user.email,))
     result = cursor.fetchone()
     conn.close()
     if result and verify_password(user.password, result[0]):
         if result[1] == 0:
             return {"success": False, "message": "Debes verificar tu correo primero."}
         return {"success": True, "message": "Login exitoso."}
-    return {"success": False, "message": "Usuario o contraseña incorrectos."}
+    return {"success": False, "message": "Email o contraseña incorrectos."}
 
 # -------------------------------
 # ROLE SYSTEM (preciso)
