@@ -324,6 +324,10 @@ MENSAJES_INICIO = [
 def get_random_greeting() -> str:
     msg = random.choice(MENSAJES_INICIO)
     return msg if msg else ""
+@app.get("/greeting")
+async def greeting():
+    msg = get_random_greeting()
+    return {"reply": msg}
 
 # -------------------------------
 # FRASES CONTEXTUALES
