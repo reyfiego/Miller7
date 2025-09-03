@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
@@ -9,7 +9,6 @@ from groq import Groq
 import os, datetime, random, uuid, sqlite3, secrets
 import smtplib
 from email.message import EmailMessage
-import speech_recognition as sr  
 
 from db import init_db, DB_PATH, create_session, save_message, get_session_messages
 
@@ -142,7 +141,6 @@ async def login_user(user: LoginModel):
 # -------------------------------
 # ROLE SYSTEM (preciso)
 # -------------------------------
-
 SYSTEM_ROLE = """
 Eres **Miller2**, una guía cercana creada por Alessandro.
 Tu estilo: humano, cálido, reflexivo, con chispa y un toque melancólico al estilo Mac Miller.
@@ -242,11 +240,9 @@ Siempre cerrar con calidez y presencia.
 Fallback: “No importa cómo siga la charla, sigo aquí.”
 """
 
-
 # -------------------------------
 # MENSAJES DE BIENVENIDA
 # -------------------------------
-
 MENSAJES_INICIO = [
     "Hey, ¿cómo amaneció tu mundo hoy?",
     "Si quieres, hablamos. Si no, también puedo quedarme aquí contigo.",
@@ -330,17 +326,8 @@ def get_random_greeting() -> str:
     return msg if msg else ""
 
 # -------------------------------
-# MODELO DE ENTRADA
-# -------------------------------
-
-class Message(BaseModel):
-    message: str
-    session_id: str | None = None
-
-# -------------------------------
 # FRASES CONTEXTUALES
 # -------------------------------
-
 FRASES_CONTEXTUALES = [
     {
         "texto": "A veces vale más actuar que reflexionar.",
@@ -368,32 +355,25 @@ def contexto_coincide(user_text: str, contexto: str) -> bool:
 # -------------------------------
 # MEMORIA DE SESIONES
 # -------------------------------
-
 session_memory = {}
-
 
 # -------------------------------
 # FUNCIONES DE PROCESAMIENTO DE TEXTO
 # -------------------------------
-
 def dividir_burbujas(texto: str) -> list[str]:
     """
     Divide la respuesta del modelo en burbujas más humanas.
     Separa por saltos de línea, puntos largos o separadores especiales.
     """
     burbujas = []
-    # Unificar "…" en "..." para consistencia
     texto = texto.replace("…", "...")
-    # Separar por dobles saltos de línea
     partes = texto.split("\n\n")
     for parte in partes:
         if not parte.strip():
             continue
-        # También dividir por " | " si el modelo lo usa como separador
         subpartes = [b.strip() for b in parte.split(" | ") if b.strip()]
         burbujas.extend(subpartes)
     return burbujas
-
 
 def filtrar_preguntas(burbujas: list[str]) -> list[str]:
     """
@@ -406,16 +386,15 @@ def filtrar_preguntas(burbujas: list[str]) -> list[str]:
         if b.endswith("?"):
             preguntas_consecutivas += 1
             if preguntas_consecutivas > 1:
-                # Si ya hubo una pregunta antes, convierte a afirmación suave
                 b = b.rstrip("?") + "."
         else:
             preguntas_consecutivas = 0
         resultado.append(b)
     return resultado
+
 # -------------------------------
 # ENDPOINT DE CHAT
 # -------------------------------
-
 @app.post("/chat")
 async def chat_endpoint(msg: Message):
     user_text = msg.message.strip()
@@ -427,16 +406,12 @@ async def chat_endpoint(msg: Message):
             status_code=400
         )
 
-    # Crear sesión en DB si no existe
     create_session(session_id)
-
-    # Recuperar historial guardado en DB
     history = get_session_messages(session_id)
     history.append({"role": "user", "content": user_text})
 
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
-    # Aplicar frases contextuales probabilísticamente
     for frase in FRASES_CONTEXTUALES:
         if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
             contenido = frase["texto"]
