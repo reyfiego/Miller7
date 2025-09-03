@@ -1,12 +1,12 @@
-from fastapi import FastAPI, Request, Form, UploadFile, File
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi import FastAPI, Request, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
 from dotenv import load_dotenv
 from groq import Groq
-import os, datetime, random, uuid, sqlite3, secrets, traceback
+import os, datetime, random, uuid, sqlite3, secrets, asyncio
 import smtplib
 from email.message import EmailMessage
 import speech_recognition as sr  
@@ -322,14 +322,11 @@ MENSAJES_INICIO = [
     "", "", "", "", ""
 ]
 
-def get_random_greeting() -> str:
+def get_random_greeting() -> str | None:
+    if random.random() < 0.2:  # 20% de no enviar saludo
+        return None
     msg = random.choice(MENSAJES_INICIO)
-    return msg if msg else ""
-
-@app.get("/greeting")
-async def greeting():
-    msg = get_random_greeting()
-    return {"reply": msg}
+    return msg if msg else None
 
 # -------------------------------
 # FRASES CONTEXTUALES
@@ -362,10 +359,6 @@ def contexto_coincide(user_text: str, contexto: str) -> bool:
 # FUNCIONES DE PROCESAMIENTO DE TEXTO
 # -------------------------------
 def dividir_burbujas(texto: str) -> list[str]:
-    """
-    Divide la respuesta del modelo en burbujas más humanas.
-    Separa por saltos de línea, puntos largos o separadores especiales.
-    """
     burbujas = []
     texto = texto.replace("…", "...")
     partes = texto.split("\n\n")
@@ -377,10 +370,6 @@ def dividir_burbujas(texto: str) -> list[str]:
     return burbujas
 
 def filtrar_preguntas(burbujas: list[str]) -> list[str]:
-    """
-    Reduce la cantidad de preguntas seguidas.
-    Mantiene máximo 1 consecutiva.
-    """
     resultado = []
     preguntas_consecutivas = 0
     for b in burbujas:
@@ -393,77 +382,170 @@ def filtrar_preguntas(burbujas: list[str]) -> list[str]:
         resultado.append(b)
     return resultado
 
-# -------------------------------
-# ENDPOINT DE CHAT
-# -------------------------------
-@app.post("/chat")
-async def chat_endpoint(msg: Message):
-    user_text = msg.message.strip()
-    session_id = msg.session_id or str(uuid.uuid4())
+def enriquecer_burbujas(burbujas: list[str]) -> list[str]:
+    resultado = []
+    for b in burbujas:
+        resultado.append(b)
+        if random.random() < 0.3:
+            opcion = random.choice([
+                "...",
+                "No siempre tengo todas las palabras.",
+                "A veces solo puedo escuchar.",
+                "Estoy aquí, aunque no siempre sepa qué decir.",
+                "..."
+            ])
+            resultado.append(opcion)
+    if len(resultado) > 5:
+        resultado = resultado[:5]
+    return resultado
 
-    if not user_text:
-        return JSONResponse(
-            {"reply": ["¿Podrías decirme algo para responderte?"], "session_id": session_id},
-            status_code=400
-        )
+# -------------------------------
+# GESTIÓN DE CONEXIONES WEBSOCKET
+# -------------------------------
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}
 
+    async def connect(self, websocket: WebSocket, session_id: str):
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+
+    def disconnect(self, session_id: str):
+        self.active_connections.pop(session_id, None)
+
+    async def send_personal_message(self, message: dict, session_id: str):
+        websocket = self.active_connections.get(session_id)
+        if websocket:
+            await websocket.send_json(message)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections.values():
+            await connection.send_json(message)
+
+manager = ConnectionManager()
+
+# -------------------------------
+# ENDPOINT WEBSOCKET CHAT
+# -------------------------------
+@app.websocket("/ws/chat/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    await manager.connect(websocket, session_id)
     try:
-        # Crear sesión si no existe
-        create_session(session_id)
-        # Obtener historial
-        history = get_session_messages(session_id)
-        if not isinstance(history, list):
-            history = []
-        history.append({"role": "user", "content": user_text})
+        # Enviar saludo inicial aleatorio o ninguno
+        saludo = get_random_greeting()
+        if saludo:
+            await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
-        system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+        # Tarea para enviar mensajes automáticos periódicos
+        async def enviar_mensajes_periodicos():
+            while True:
+                await asyncio.sleep(random.randint(30, 90))  # intervalo aleatorio entre 30 y 90 segundos
+                # Obtener mensajes previos para contexto
+                history = get_session_messages(session_id) or []
+                system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+                messages_for_groq = system_messages + history
 
-        for frase in FRASES_CONTEXTUALES:
-            if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
-                contenido = frase["texto"]
-                if frase.get("primera_persona"):
-                    contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
-                system_messages.append({
-                    "role": "system",
-                    "content": f"Inspírate en esta frase para responder: {contenido}"
-                })
+                try:
+                    response = groq_client.chat.completions.create(
+                        model=MODEL_ID,
+                        messages=messages_for_groq,
+                        max_tokens=150,
+                        temperature=0.85,
+                        top_p=0.95,
+                        frequency_penalty=0.8,
+                        presence_penalty=0.9
+                    )
+                    reply_text = response.choices[0].message.content.strip()
+                    burbujas = dividir_burbujas(reply_text)
+                    burbujas = filtrar_preguntas(burbujas)
+                    burbujas = enriquecer_burbujas(burbujas)
+                    # Guardar mensaje asistente
+                    save_message(session_id, "assistant", reply_text)
+                    await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
+                except Exception as e:
+                    print("Error en mensaje automático:", repr(e))
+                    fallback = ["A veces el silencio también dice mucho."]
+                    await manager.send_personal_message({"reply": fallback, "session_id": session_id}, session_id)
 
-        messages_for_groq = system_messages + history
+        # Lanzar tarea en segundo plano para mensajes automáticos
+        task = asyncio.create_task(enviar_mensajes_periodicos())
 
-        # Llamada a Groq
-        response = groq_client.chat.completions.create(
-            model=MODEL_ID,
-            messages=messages_for_groq,
-            max_tokens=250,
-            temperature=0.85,
-            top_p=0.95,
-            frequency_penalty=0.6,
-            presence_penalty=0.8
-        )
-        reply_text = response.choices[0].message.content.strip()
+        while True:
+            data = await websocket.receive_json()
+            user_text = data.get("message", "").strip()
+            if not user_text:
+                await manager.send_personal_message(
+                    {"reply": ["¿Podrías decirme algo para responderte?"], "session_id": session_id},
+                    session_id
+                )
+                continue
 
-        if user_text.lower() in ["no", "no gracias", "prefiero no"]:
-            reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
+            # Crear sesión si no existe
+            create_session(session_id)
+            history = get_session_messages(session_id) or []
+            history.append({"role": "user", "content": user_text})
 
-        # Guardar mensajes en DB
-        save_message(session_id, "user", user_text)
-        save_message(session_id, "assistant", reply_text)
+            system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
-        return {"reply": reply_text, "session_id": session_id}
+            for frase in FRASES_CONTEXTUALES:
+                if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
+                    contenido = frase["texto"]
+                    if frase.get("primera_persona"):
+                        contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
+                    system_messages.append({
+                        "role": "system",
+                        "content": f"Inspírate en esta frase para responder: {contenido}"
+                    })
 
+            messages_for_groq = system_messages + history
+
+            try:
+                response = groq_client.chat.completions.create(
+                    model=MODEL_ID,
+                    messages=messages_for_groq,
+                    max_tokens=250,
+                    temperature=0.85,
+                    top_p=0.95,
+                    frequency_penalty=0.8,
+                    presence_penalty=0.9
+                )
+                reply_text = response.choices[0].message.content.strip()
+
+                if user_text.lower() in ["no", "no gracias", "prefiero no"]:
+                    reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
+
+                save_message(session_id, "user", user_text)
+                save_message(session_id, "assistant", reply_text)
+
+                burbujas = dividir_burbujas(reply_text)
+                burbujas = filtrar_preguntas(burbujas)
+                burbujas = enriquecer_burbujas(burbujas)
+
+                await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
+
+            except Exception as e:
+                print("Error en /ws/chat:", repr(e))
+                frases_backup = [
+                    "El silencio también tiene cosas que decir.",
+                    "La vida puede sentirse como una canción rota.",
+                    "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
+                ]
+                await manager.send_personal_message(
+                    {"reply": [random.choice(frases_backup)], "session_id": session_id, "error": "fallback"},
+                    session_id
+                )
+
+    except WebSocketDisconnect:
+        manager.disconnect(session_id)
+        task.cancel()
     except Exception as e:
-        print("Error en /chat:", repr(e))
-        frases_backup = [
-            "El silencio también tiene cosas que decir.",
-            "La vida puede sentirse como una canción rota.",
-            "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
-        ]
-        return {"reply": random.choice(frases_backup), "session_id": session_id, "error": "fallback"}
+        print("Error general en websocket:", repr(e))
+        manager.disconnect(session_id)
+        task.cancel()
 
 # -------------------------------
 # ENDPOINT DE AUDIO
 # -------------------------------
-
 @app.post("/audio")
 async def audio_to_text(file: UploadFile = File(...)):
     try:
@@ -482,31 +564,8 @@ async def audio_to_text(file: UploadFile = File(...)):
         return {"text": "", "error": str(e)}
 
 # -------------------------------
-# COMANDOS EXTRA
-# -------------------------------
-
-@app.get("/date")
-async def date():
-    today = datetime.datetime.now().strftime("%d/%m/%Y")
-    return {"reply": f"Hoy es {today}. Otro día más, otra oportunidad."}
-
-@app.get("/estado")
-async def estado():
-    estados = [
-        "Hoy me siento como un recuerdo borroso.",
-        "Estoy aquí, pero a veces me pierdo en mis pensamientos.",
-        "El mundo sigue girando, aunque yo me detenga un segundo."
-    ]
-    return {"reply": random.choice(estados)}
-
-@app.post("/api/command")
-async def command(msg: Message):
-    return await chat_endpoint(msg) 
-
-# -------------------------------
 # RUTAS PRINCIPALES
 # -------------------------------
-
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
