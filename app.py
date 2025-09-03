@@ -352,7 +352,8 @@ FRASES_CONTEXTUALES = [
 ]
 
 def contexto_coincide(user_text: str, contexto: str) -> bool:
-    return any(palabra.lower() in user_text.lower() for palabra in contexto.split(","))
+    palabras = [c.strip() for c in contexto.split(",")]
+    return any(p.lower() in user_text.lower() for p in palabras)
 
 # -------------------------------
 # FUNCIONES DE PROCESAMIENTO DE TEXTO
@@ -429,21 +430,20 @@ manager = ConnectionManager()
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
+    ultima_interaccion = datetime.datetime.now()
     try:
-        # Enviar saludo inicial aleatorio o ninguno
         saludo = get_random_greeting()
         if saludo:
             await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
-        # Tarea para enviar mensajes automáticos periódicos
         async def enviar_mensajes_periodicos():
             while True:
-                await asyncio.sleep(random.randint(30, 90))  # intervalo aleatorio entre 30 y 90 segundos
-                # Obtener mensajes previos para contexto
+                await asyncio.sleep(random.randint(30, 90))
+                if (datetime.datetime.now() - ultima_interaccion).seconds > 120:
+                    continue
                 history = get_session_messages(session_id) or []
                 system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
                 messages_for_groq = system_messages + history
-
                 try:
                     response = groq_client.chat.completions.create(
                         model=MODEL_ID,
@@ -455,23 +455,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         presence_penalty=0.9
                     )
                     reply_text = response.choices[0].message.content.strip()
-                    burbujas = dividir_burbujas(reply_text)
-                    burbujas = filtrar_preguntas(burbujas)
-                    burbujas = enriquecer_burbujas(burbujas)
-                    # Guardar mensaje asistente
+                    burbujas = enriquecer_burbujas(filtrar_preguntas(dividir_burbujas(reply_text)))
+                    for b in burbujas:
+                        await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
+                        await asyncio.sleep(random.uniform(0.5, 1.5))
                     save_message(session_id, "assistant", reply_text)
-                    await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
                 except Exception as e:
                     print("Error en mensaje automático:", repr(e))
-                    fallback = ["A veces el silencio también dice mucho."]
-                    await manager.send_personal_message({"reply": fallback, "session_id": session_id}, session_id)
 
-        # Lanzar tarea en segundo plano para mensajes automáticos
         task = asyncio.create_task(enviar_mensajes_periodicos())
 
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
+            ultima_interaccion = datetime.datetime.now()
             if not user_text:
                 await manager.send_personal_message(
                     {"reply": ["¿Podrías decirme algo para responderte?"], "session_id": session_id},
@@ -479,11 +476,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 continue
 
-            # Crear sesión si no existe
             create_session(session_id)
             history = get_session_messages(session_id) or []
             history.append({"role": "user", "content": user_text})
-
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
             for frase in FRASES_CONTEXTUALES:
@@ -516,11 +511,19 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = dividir_burbujas(reply_text)
-                burbujas = filtrar_preguntas(burbujas)
-                burbujas = enriquecer_burbujas(burbujas)
+                burbujas = enriquecer_burbujas(filtrar_preguntas(dividir_burbujas(reply_text)))
+                for b in burbujas:
+                    await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
 
-                await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
+                # Follow-up contextuales
+                if random.random() < 0.3:
+                    context_msgs = [f["texto"] for f in FRASES_CONTEXTUALES if contexto_coincide(user_text, f["contexto"])]
+                    if context_msgs:
+                        follow_up = random.choice(context_msgs)
+                        if any(f.get("primera_persona") for f in FRASES_CONTEXTUALES):
+                            follow_up = f"Sabes, a veces yo siento algo parecido. {follow_up}"
+                        await manager.send_personal_message({"reply": [follow_up], "session_id": session_id}, session_id)
 
             except Exception as e:
                 print("Error en /ws/chat:", repr(e))
