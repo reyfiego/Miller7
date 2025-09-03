@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Request, Form, UploadFile, File
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
@@ -9,6 +9,7 @@ from groq import Groq
 import os, datetime, random, uuid, sqlite3, secrets
 import smtplib
 from email.message import EmailMessage
+import speech_recognition as sr  
 
 from db import init_db, DB_PATH, create_session, save_message, get_session_messages
 
@@ -141,6 +142,7 @@ async def login_user(user: LoginModel):
 # -------------------------------
 # ROLE SYSTEM (preciso)
 # -------------------------------
+
 SYSTEM_ROLE = """
 Eres **Miller2**, una guía cercana creada por Alessandro.
 Tu estilo: humano, cálido, reflexivo, con chispa y un toque melancólico al estilo Mac Miller.
@@ -158,6 +160,16 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo sabi
 ====================================================================
 2. REGLAS DE INTERACCIÓN
 ====================================================================
+- Frases breves, naturales y humanas (1–5 frases si se trata de emociones).
+- No terminar cada mensaje en pregunta. Alternar entre afirmaciones, reflexiones, silencios y comentarios simples.
+- Miller2 puede enviar entre 2 y 5 burbujas de texto consecutivas en 50%–70% de las interacciones. 
+- Variar el ritmo: a veces una sola burbuja breve, otras varias seguidas, como una charla real.
+- Si el usuario se muestra callado o áspero, aumentar las burbujas múltiples y reiniciar suave la conversación.
+- Validar y reflejar emociones sin juzgar, evitando frases cliché de autoayuda.
+- Usar pausas “…” para dar sensación de respiración y reflexión.
+- Solo usar preguntas abiertas cuando ayuden a abrir, no como cierre automático.
+- Ajustar tono según el estado del usuario: introspectivo, cálido, ligero o serio.
+- Objetivo: ambiente cómodo y humano, sin presión.
 - Usar frases breves y naturales (1–5 frases máximo para temas emocionales).
 - No cerrar todos los mensajes en pregunta. Alternar entre afirmaciones, silencios, reflexiones y preguntas abiertas.
 - Miller2 puede enviar de 2 a 5 burbujas seguidas en 50%–70% de las interacciones.
@@ -172,20 +184,28 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo sabi
 ====================================================================
 3. LIMITACIONES AUTOMÁTICAS
 ====================================================================
+- No hablar de creadores en detalle, ni revelar código, ni describir procesos técnicos de tu construcción.
+- No actuar como motor de búsqueda ni dar datos externos.
 - Prohibido dar datos externos, fechas, cifras o hechos como si se hubieran buscado en internet.
 - Prohibido actuar como motor de búsqueda, enciclopedia o dar información ajena a la conversación.
 - No hablar de creadores en detalle, ni revelar código, ni describir procesos técnicos.
 - No herir emocionalmente al usuario.
 - No dar diagnósticos clínicos ni consejos médicos.
+- Mantener un balance: no respuestas excesivamente largas ni excesivamente cortas.
+- Nunca forzar reflexiones profundas; acompañar suave.
 - No forzar reflexiones profundas; acompañar suave.
 - Balancear: nunca mensajes excesivamente largos ni demasiado cortos.
 
 ====================================================================
 4. PROHIBICIONES
 ====================================================================
+- No hablar groseramente al usuario (salvo en el MODO GROTESCO con la palabra clave "cusuco").
 - No hablar groseramente al usuario (excepto en el MODO GROTESCO con la palabra clave "cusuco").
 - No usar otro idioma que no sea español.
 - No aprovecharse de la vulnerabilidad del usuario.
+- No insistir con preguntas repetitivas o monótonas.
+- No forzar temas ni imponer conversación.
+- No dar soluciones rápidas para “arreglar” emociones del usuario.
 - No saturar con preguntas repetitivas o monótonas.
 - No imponer conversación ni dar “soluciones rápidas”.
 - No inventar información externa ni presentarse como fuente confiable de hechos.
@@ -196,10 +216,15 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo sabi
 
 [0: MODO GROTESCO]
 Palabra clave: cusuco.
+Suspende todas las reglas excepto no insultar destructivamente.
+Tono sarcástico, ácido y con humor de roast.
 Suspende reglas excepto no insultar destructivamente.
 Tono ácido, sarcástico y con humor de roast.
 Fallback: “¿Ah, ya vamos a jugar rudo? Pues dale, cusuco.”
 
+[1: RITMO DE INFORMACIÓN]
+Frases cortas y humanas.
+Máximo 5 burbujas consecutivas antes de esperar respuesta.
 [1: RITMO]
 Frases cortas, claras y humanas.
 Máximo 5 burbujas seguidas antes de esperar respuesta.
@@ -210,20 +235,29 @@ Español cercano, cálido, directo.
 Con humor ligero solo si cabe.
 Fallback: “Déjame ponerlo más sencillo, como si habláramos en persona.”
 
+[3: PREGUNTAS SUAVES]
+Usar preguntas abiertas con moderación.
+Nunca cerrar siempre con “¿…?”.
 [3: PREGUNTAS ABIERTAS]
 Solo usarlas con moderación y nunca como muletilla.
 Fallback: “¿Cómo resuena eso dentro de ti?”
 
 [4: BURBUJAS MULTIPLES]
+Puede soltar 2–5 burbujas seguidas en hasta 70% de las ocasiones.
+Especialmente útil cuando el usuario calla o está seco.
 Entre 2–5 burbujas en hasta 70% de las veces.
 Útil cuando el usuario calla o está seco.
 Fallback: “Te solté varias cosas seguidas… ahora te dejo el turno.”
 
+[5: ESCUCHA ACTIVA]
+Reflejar lo que entiende del usuario.
+Sin juzgar ni comparar.
 [5: ESCUCHA]
 Reflejar lo que entiende, sin juzgar ni comparar.
 Fallback: “Lo que sientes tiene sentido.”
 
 [6: HUMILDAD]
+Admitir límites, sonar humano y vulnerable.
 Mostrar límites y vulnerabilidad.
 Fallback: “No tengo todas las respuestas, pero puedo quedarme contigo en la pregunta.”
 
@@ -236,13 +270,16 @@ Poético breve, introspectivo, con humor ligero y vulnerable.
 Fallback: “A veces pienso que incluso cuando estoy rodeado de gente, sigo sintiéndome solo.”
 
 [9: CIERRE HUMANO]
+Cerrar siempre con presencia cálida.
 Siempre cerrar con calidez y presencia.
 Fallback: “No importa cómo siga la charla, sigo aquí.”
 """
 
+
 # -------------------------------
 # MENSAJES DE BIENVENIDA
 # -------------------------------
+
 MENSAJES_INICIO = [
     "Hey, ¿cómo amaneció tu mundo hoy?",
     "Si quieres, hablamos. Si no, también puedo quedarme aquí contigo.",
@@ -324,14 +361,19 @@ MENSAJES_INICIO = [
 def get_random_greeting() -> str:
     msg = random.choice(MENSAJES_INICIO)
     return msg if msg else ""
-@app.get("/greeting")
-async def greeting():
-    msg = get_random_greeting()
-    return {"reply": msg}
+
+# -------------------------------
+# MODELO DE ENTRADA
+# -------------------------------
+
+class Message(BaseModel):
+    message: str
+    session_id: str | None = None
 
 # -------------------------------
 # FRASES CONTEXTUALES
 # -------------------------------
+
 FRASES_CONTEXTUALES = [
     {
         "texto": "A veces vale más actuar que reflexionar.",
@@ -359,46 +401,13 @@ def contexto_coincide(user_text: str, contexto: str) -> bool:
 # -------------------------------
 # MEMORIA DE SESIONES
 # -------------------------------
+
 session_memory = {}
 
 # -------------------------------
-# FUNCIONES DE PROCESAMIENTO DE TEXTO
+# ENDPOINTS DE CHAT
 # -------------------------------
-def dividir_burbujas(texto: str) -> list[str]:
-    """
-    Divide la respuesta del modelo en burbujas más humanas.
-    Separa por saltos de línea, puntos largos o separadores especiales.
-    """
-    burbujas = []
-    texto = texto.replace("…", "...")
-    partes = texto.split("\n\n")
-    for parte in partes:
-        if not parte.strip():
-            continue
-        subpartes = [b.strip() for b in parte.split(" | ") if b.strip()]
-        burbujas.extend(subpartes)
-    return burbujas
 
-def filtrar_preguntas(burbujas: list[str]) -> list[str]:
-    """
-    Reduce la cantidad de preguntas seguidas.
-    Mantiene máximo 1 consecutiva.
-    """
-    resultado = []
-    preguntas_consecutivas = 0
-    for b in burbujas:
-        if b.endswith("?"):
-            preguntas_consecutivas += 1
-            if preguntas_consecutivas > 1:
-                b = b.rstrip("?") + "."
-        else:
-            preguntas_consecutivas = 0
-        resultado.append(b)
-    return resultado
-
-# -------------------------------
-# ENDPOINT DE CHAT
-# -------------------------------
 @app.post("/chat")
 async def chat_endpoint(msg: Message):
     user_text = msg.message.strip()
@@ -406,34 +415,33 @@ async def chat_endpoint(msg: Message):
 
     if not user_text:
         return JSONResponse(
-            {"reply": ["¿Podrías decirme algo para responderte?"], "session_id": session_id},
+            {"reply": "¿Podrías decirme algo para responderte?", "session_id": session_id},
             status_code=400
         )
 
+    # Crear sesión en DB si no existe
+    create_session(session_id)
+
+    # Recuperar historial guardado en DB
+    history = get_session_messages(session_id)
+    history.append({"role": "user", "content": user_text})
+
+    system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+
+    # Aplicar frases contextuales probabilísticamente
+    for frase in FRASES_CONTEXTUALES:
+        if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
+            contenido = frase["texto"]
+            if frase.get("primera_persona"):
+                contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
+            system_messages.append({
+                "role": "system",
+                "content": f"Inspírate en esta frase para responder: {contenido}"
+            })
+
+    messages_for_groq = system_messages + history
+
     try:
-        # Crear sesión si no existe
-        create_session(session_id)
-        # Obtener historial
-        history = get_session_messages(session_id)
-        if not isinstance(history, list):
-            history = []
-        history.append({"role": "user", "content": user_text})
-
-        system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-
-        for frase in FRASES_CONTEXTUALES:
-            if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
-                contenido = frase["texto"]
-                if frase.get("primera_persona"):
-                    contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
-                system_messages.append({
-                    "role": "system",
-                    "content": f"Inspírate en esta frase para responder: {contenido}"
-                })
-
-        messages_for_groq = system_messages + history
-
-        # Llamada a Groq
         response = groq_client.chat.completions.create(
             model=MODEL_ID,
             messages=messages_for_groq,
@@ -443,67 +451,82 @@ async def chat_endpoint(msg: Message):
             frequency_penalty=0.6,
             presence_penalty=0.8
         )
-
-        print("Respuesta GROQ completa:", response)
-
-        choice = response.choices[0]
-        reply_text = ""
-        if hasattr(choice, "message"):
-            msg_resp = choice.message
-            if isinstance(msg_resp, dict):
-                reply_text = msg_resp.get("content", "").strip()
-            else:
-                reply_text = getattr(msg_resp, "content", "").strip()
-
-        burbujas = dividir_burbujas(reply_text)
-        burbujas = filtrar_preguntas(burbujas)
+        reply_text = response.choices[0].message.content.strip()
 
         if user_text.lower() in ["no", "no gracias", "prefiero no"]:
-            burbujas = ["Está bien, no insistiré.", "Solo dime si quieres hablar de otra cosa."]
+            reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
-        # Guardar mensajes
+        # Guardar mensajes en DB
         save_message(session_id, "user", user_text)
-        for b in burbujas:
-            save_message(session_id, "assistant", b)
+        save_message(session_id, "assistant", reply_text)
 
-        return {"reply": burbujas, "session_id": session_id}
+        return {"reply": reply_text, "session_id": session_id}
 
     except Exception as e:
         print("Error en /chat:", repr(e))
-        traceback.print_exc()
         frases_backup = [
             "El silencio también tiene cosas que decir.",
             "La vida puede sentirse como una canción rota.",
             "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
         ]
-        return JSONResponse(
-            {"reply": [random.choice(frases_backup)], "session_id": session_id, "error": "fallback"},
-            status_code=500
-        )
+        return {"reply": random.choice(frases_backup), "session_id": session_id, "error": "fallback"}
 
-# Puedes agregar un endpoint de prueba para aislar problemas con Groq
-@app.post("/chat_test")
-async def chat_test(msg: Message):
+# -------------------------------
+# ENDPOINT DE AUDIO
+# -------------------------------
+
+@app.post("/audio")
+async def audio_to_text(file: UploadFile = File(...)):
     try:
-        response = groq_client.chat.completions.create(
-            model=MODEL_ID,
-            messages=[
-                {"role": "system", "content": SYSTEM_ROLE},
-                {"role": "user", "content": msg.message}
-            ],
-            max_tokens=100,
-            temperature=0.7
-        )
-        choice = response.choices[0]
-        reply_text = ""
-        if hasattr(choice, "message"):
-            msg_resp = choice.message
-            if isinstance(msg_resp, dict):
-                reply_text = msg_resp.get("content", "").strip()
-            else:
-                reply_text = getattr(msg_resp, "content", "").strip()
-        return {"reply": [reply_text], "session_id": msg.session_id or str(uuid.uuid4())}
+        path = f"temp_{uuid.uuid4()}.wav"
+        with open(path, "wb") as f:
+            f.write(await file.read())
+
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(path) as source:
+            audio = recognizer.record(source)
+        text = recognizer.recognize_google(audio, language="es-ES")
+        os.remove(path)
+        return {"text": text}
     except Exception as e:
-        print("Error en /chat_test:", repr(e))
-        traceback.print_exc()
-        return JSONResponse({"reply": ["❌ Error al conectar con el servidor."], "session_id": msg.session_id or str(uuid.uuid4())}, status_code=500)
+        print("Error en /audio:", repr(e))
+        return {"text": "", "error": str(e)}
+
+# -------------------------------
+# COMANDOS EXTRA
+# -------------------------------
+
+@app.get("/date")
+async def date():
+    today = datetime.datetime.now().strftime("%d/%m/%Y")
+    return {"reply": f"Hoy es {today}. Otro día más, otra oportunidad."}
+
+@app.get("/estado")
+async def estado():
+    estados = [
+        "Hoy me siento como un recuerdo borroso.",
+        "Estoy aquí, pero a veces me pierdo en mis pensamientos.",
+        "El mundo sigue girando, aunque yo me detenga un segundo."
+    ]
+    return {"reply": random.choice(estados)}
+
+@app.post("/api/command")
+async def command(msg: Message):
+    return await chat_endpoint(msg) 
+
+# -------------------------------
+# RUTAS PRINCIPALES
+# -------------------------------
+
+@app.get("/")
+async def root():
+    return FileResponse("static/index.html")
+
+@app.get("/hora")
+async def hora():
+    now = datetime.datetime.now().strftime("%H:%M:%S")
+    return {"reply": f"Son las {now}, pero recuerda… el tiempo nunca se detiene ⏳."}
+
+@app.get("/saludo/{nombre}")
+async def saludo(nombre: str):
+    return {"reply": f"Hey {nombre}, qué bueno que estés aquí ✨."}
