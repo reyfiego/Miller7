@@ -459,7 +459,16 @@ async def chat_endpoint(msg: Message):
             frequency_penalty=0.6,
             presence_penalty=0.8
         )
-        reply_text = response.choices[0].message.content.strip()
+
+        # --- DEPURACIÓN ---
+        print("Respuesta GROQ completa:", response)
+
+        # --- FIX: acceder al contenido de manera segura ---
+        choice = response.choices[0]
+        if isinstance(choice.message, dict):
+            reply_text = choice.message.get("content", "").strip()
+        else:
+            reply_text = getattr(choice.message, "content", "").strip()
 
         # Convertir en burbujas y filtrar
         burbujas = dividir_burbujas(reply_text)
@@ -484,48 +493,6 @@ async def chat_endpoint(msg: Message):
             "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
         ]
         return {"reply": [random.choice(frases_backup)], "session_id": session_id, "error": "fallback"}
-# -------------------------------
-# ENDPOINT DE AUDIO
-# -------------------------------
-
-@app.post("/audio")
-async def audio_to_text(file: UploadFile = File(...)):
-    try:
-        path = f"temp_{uuid.uuid4()}.wav"
-        with open(path, "wb") as f:
-            f.write(await file.read())
-
-        recognizer = sr.Recognizer()
-        with sr.AudioFile(path) as source:
-            audio = recognizer.record(source)
-        text = recognizer.recognize_google(audio, language="es-ES")
-        os.remove(path)
-        return {"text": text}
-    except Exception as e:
-        print("Error en /audio:", repr(e))
-        return {"text": "", "error": str(e)}
-
-# -------------------------------
-# COMANDOS EXTRA
-# -------------------------------
-
-@app.get("/date")
-async def date():
-    today = datetime.datetime.now().strftime("%d/%m/%Y")
-    return {"reply": f"Hoy es {today}. Otro día más, otra oportunidad."}
-
-@app.get("/estado")
-async def estado():
-    estados = [
-        "Hoy me siento como un recuerdo borroso.",
-        "Estoy aquí, pero a veces me pierdo en mis pensamientos.",
-        "El mundo sigue girando, aunque yo me detenga un segundo."
-    ]
-    return {"reply": random.choice(estados)}
-
-@app.post("/api/command")
-async def command(msg: Message):
-    return await chat_endpoint(msg) 
 
 # -------------------------------
 # RUTAS PRINCIPALES
