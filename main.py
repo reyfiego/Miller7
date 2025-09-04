@@ -1,6 +1,16 @@
 # importante esto hara que se importe directamente la definicion necesaria para que el uvicorn monte el server(ojo aca)
-from miller_core import app  # importa el FastAPI desde __init__.py
+import sys
+import os
 
-if __name__ == "__main__":
-    import uvicorn
-    import os
+sys.path.append(os.path.dirname(__file__))
+
+from miller_core import app  
+
+
+@app.on_event("startup")
+async def startup_event():
+    print("Servidor iniciado correctamente")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("Servidor cerrado")
