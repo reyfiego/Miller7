@@ -4,7 +4,9 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 
-
+# ==========================
+# CONFIG
+# ==========================
 load_dotenv()
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
@@ -14,10 +16,13 @@ if not API_KEY:
 
 groq_client = Groq(api_key=API_KEY)
 
-
-
+# ==========================
+# FUNCIONES
+# ==========================
 def dividir_burbujas_aleatorio(texto: str) -> list[str]:
-    """Divide un texto largo en burbujas más pequeñas conservando puntuación y pausas naturales."""
+    """
+    Divide un texto largo en burbujas más pequeñas conservando puntuación y pausas naturales.
+    """
     texto = texto.replace("...", "…")
     frases = re.split(r'(?<=[.?!…])\s+', texto)
     burbujas = []
@@ -43,19 +48,26 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
 
 
 def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
-    """Genera una frase corta basada en el contexto usando GROQ."""
+    """
+    Genera una frase corta basada en el contexto usando GROQ.
+    """
     prompt = f"""
     Eres un asistente empático y humano.
     Usuario: {contexto}
     Responde con una frase corta y coherente que continúe la conversación.
     No uses más de 20 palabras.
     """
-    respuesta = groq_client.predict(
-        model_id=MODEL_ID,
-        inputs=prompt
-    )
-  
-    return getattr(respuesta, "text", getattr(respuesta, "output_text", "")).strip()
+    try:
+        respuesta = groq_client.chat.completions.create(
+            model=MODEL_ID,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=50,
+            temperature=0.8
+        )
+        return respuesta.choices[0].message.content.strip()
+    except Exception as e:
+        print("⚠️ Error con Groq:", e)
+        return ""
 
 
 def enriquecer_burbujas_contextual(
@@ -69,23 +81,10 @@ def enriquecer_burbujas_contextual(
     resultado = []
     for b in burbujas:
         resultado.append(b)
-        
-        if random.random() < 0.3 and not b.endswith("?"):
-            if contexto_coincide(b, [contexto]):
-                frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
+
+        # Más flexible: 60% de probabilidad de añadir frase contextual
+        if random.random() < 0.6 and not b.endswith("?"):
+            frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
+            if frase_contextual:
                 resultado.append(frase_contextual)
     return resultado
-
-
-
-if __name__ == "__main__":
-    historial_completo = "Usuario: Hola, hoy me siento un poco triste."
-    texto_usuario = "No sé qué hacer con mi tiempo libre. Me siento perdido..."
-
-    burbujas = dividir_burbujas_aleatorio(texto_usuario)
-    burbujas_enriquecidas = enriquecer_burbujas_contextual(
-        burbujas,
-        contexto=historial_completo,
-        groq_client=groq_client
-    )
-    print(burbujas_enriquecidas)
