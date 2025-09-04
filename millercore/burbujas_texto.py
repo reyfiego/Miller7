@@ -1,5 +1,10 @@
 import random
 import re
+from groq import Groq
+import os
+from dotenv import load_dotenv
+API_KEY = os.getenv("GROQ_API_KEY")
+
 
 
 def dividir_burbujas_aleatorio(texto: str) -> list[str]:
@@ -87,7 +92,8 @@ if __name__ == "__main__":
     burbujas_enriquecidas = enriquecer_burbujas_contextual(
         burbujas, 
         contexto=historial_completo, 
-        groq_client=groq_client
+        groq_client = Groq(api_key=API_KEY)
+        
     )
 
     print(burbujas_enriquecidas)
