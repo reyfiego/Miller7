@@ -63,6 +63,15 @@ def enriquecer_burbujas_contextual(
     return resultado
 
 
+def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
+    """
+    Verifica si el mensaje del usuario coincide con algún contexto previo.
+    """
+    for frase in contexto:
+        if frase.lower() in mensaje.lower():
+            return True
+    return False
+
 
 if __name__ == "__main__":
     

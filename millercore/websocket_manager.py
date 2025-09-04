@@ -6,7 +6,7 @@ from fastapi import WebSocket
 
 from modelos import get_session_messages, save_message
 from corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES
-from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, generar_frase_contextual_groq
+from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, generar_frase_contextual_groq, contexto_coincide
 from groq import Groq
 import os
 
