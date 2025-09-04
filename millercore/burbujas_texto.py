@@ -1,9 +1,15 @@
 import random
 import re
-from groq import Groq
 import os
 from dotenv import load_dotenv
+from groq import Groq
+
+load_dotenv()
 API_KEY = os.getenv("GROQ_API_KEY")
+if not API_KEY:
+    raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
+
+groq_client = Groq(api_key=API_KEY)
 
 
 
@@ -13,7 +19,6 @@ def dividir_burbujas_aleatorio(texto: str) -> list[str]:
     conservando signos de puntuación y respetando pausas naturales.
     """
     texto = texto.replace("...", "…")
-    # Separa por signos de puntuación
     frases = re.split(r'(?<=[.?!…])\s+', texto)
     burbujas = []
     temp = ""
@@ -39,7 +44,6 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
     return False
 
 
-
 def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
     """
     Llama al modelo de lenguaje GROQ para generar una frase corta basada en el contexto.
@@ -54,9 +58,8 @@ def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
         model_id="meta-llama/llama-4-scout-17b-16e-instruct",
         inputs=prompt
     )
-    return respuesta.output_text.strip()
-
-
+    # Ajusta según la versión del SDK de Groq
+    return getattr(respuesta, "text", getattr(respuesta, "output_text", "")).strip()
 
 
 def enriquecer_burbujas_contextual(
@@ -71,17 +74,17 @@ def enriquecer_burbujas_contextual(
     for b in burbujas:
         resultado.append(b)
 
+       
         if random.random() < 0.3 and not b.endswith("?"):
-            frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
-            resultado.append(frase_contextual)
+            if contexto_coincide(b, [contexto]):
+                frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
+                resultado.append(frase_contextual)
 
     return resultado
 
 
 
-
 if __name__ == "__main__":
-    
     historial_completo = "Usuario: Hola, hoy me siento un poco triste."
     texto_usuario = "No sé qué hacer con mi tiempo libre. Me siento perdido..."
 
@@ -92,8 +95,7 @@ if __name__ == "__main__":
     burbujas_enriquecidas = enriquecer_burbujas_contextual(
         burbujas, 
         contexto=historial_completo, 
-        groq_client = Groq(api_key=API_KEY)
-        
+        groq_client=groq_client
     )
 
     print(burbujas_enriquecidas)

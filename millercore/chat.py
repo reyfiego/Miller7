@@ -1,13 +1,11 @@
-# MillerCore/chat.py
-
 import datetime
 import asyncio
 import random
 from typing import List
 from fastapi import WebSocket, WebSocketDisconnect
 
-from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, generar_frase_contextual_groq, contexto_coincide
 from millercore.corazon import SYSTEM_ROLE, MENSAJES_INICIO, get_random_greeting, FRASES_CONTEXTUALES
+from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, generar_frase_contextual_groq, contexto_coincide
 from db import create_session, save_message, get_session_messages
 from .__init__ import groq_client, MODEL_ID
 
