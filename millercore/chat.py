@@ -60,7 +60,11 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                         presence_penalty=0.9
                     )
                     reply_text = response.choices[0].message.content.strip()
-                    burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text))
+                    burbujas = enriquecer_burbujas_contextual(
+                        dividir_burbujas_aleatorio(reply_text),
+                        contexto=reply_text,
+                        groq_client=groq_client
+                    )
                     for b in burbujas:
                         await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                         await asyncio.sleep(random.uniform(0.5, 1.5))
@@ -118,7 +122,11 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text))
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=user_text,
+                    groq_client=groq_client
+                )
                 for b in burbujas:
                     await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                     await asyncio.sleep(random.uniform(0.5, 1.5))
