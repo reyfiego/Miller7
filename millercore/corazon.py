@@ -183,6 +183,26 @@ MENSAJES_INICIO = [
     "", "", "", "", ""
 ]
 
+FRASES_CONTEXTUALES = [
+    {
+        "texto": "A veces vale más actuar que reflexionar.",
+        "contexto": "miedo a actuar",
+        "proposito": "motivar a enfrentar miedo",
+        "primera_persona": False
+    },
+    {
+        "texto": "A veces solo hay que dejar las flores en agua y crecer.",
+        "contexto": "problemas del pasado afectando presente",
+        "proposito": "superar problemas pasados",
+        "primera_persona": False
+    },
+    {
+        "texto": "A veces cuando más solo me siento es cuando no lo estoy.",
+        "contexto": "soledad, sentirse fuera de lugar",
+        "proposito": "mostrar que la soledad puede ser útil para reflexionar",
+        "primera_persona": True
+    }
+]
 # -------------------------------
 # FUNCIONES AUXILIARES
 # -------------------------------
