@@ -4,15 +4,10 @@ import random
 from typing import List
 from fastapi import WebSocket, WebSocketDisconnect
 
-from millercore.corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
-from millercore.burbujas_texto import (
-    dividir_burbujas_aleatorio,
-    enriquecer_burbujas_contextual,
-    contexto_coincide
-)
+from .burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
+from .corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
 from db import create_session, save_message, get_session_messages
 from .__init__ import groq_client, MODEL_ID
-
 
 class ConnectionManager:
     def __init__(self):
@@ -34,23 +29,18 @@ class ConnectionManager:
         for connection in self.active_connections.values():
             await connection.send_json(message)
 
-
 manager = ConnectionManager()
-
 
 async def websocket_handler(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
     ultima_interaccion = datetime.datetime.now()
-
     try:
         # Saludo inicial
         saludo = get_random_greeting()
         if saludo:
-            await manager.send_personal_message(
-                {"reply": [saludo], "session_id": session_id}, session_id
-            )
+            await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
-        # Mensajes automáticos periódicos
+        # Tarea de mensajes periódicos
         async def enviar_mensajes_periodicos():
             while True:
                 await asyncio.sleep(random.randint(30, 90))
@@ -70,17 +60,9 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                         presence_penalty=0.9
                     )
                     reply_text = response.choices[0].message.content.strip()
-
-                    # Burbujas enriquecidas
-                    burbujas = enriquecer_burbujas_contextual(
-                        dividir_burbujas_aleatorio(reply_text),
-                        contexto=reply_text,
-                        groq_client=groq_client
-                    )
+                    burbujas = enriquecer_burbujas_aleatorio(dividir_burbujas_aleatorio(reply_text))
                     for b in burbujas:
-                        await manager.send_personal_message(
-                            {"reply": [b], "session_id": session_id}, session_id
-                        )
+                        await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                         await asyncio.sleep(random.uniform(0.5, 1.5))
                     save_message(session_id, "assistant", reply_text)
                 except Exception as e:
@@ -88,12 +70,11 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
 
         task = asyncio.create_task(enviar_mensajes_periodicos())
 
-        # Loop principal de mensajes del usuario
+        # Loop principal de mensajes
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
             ultima_interaccion = datetime.datetime.now()
-
             if not user_text:
                 await manager.send_personal_message(
                     {"reply": ["¿Podrías decirme algo para responderte?"], "session_id": session_id},
@@ -101,7 +82,6 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                 )
                 continue
 
-            # Guardar sesión y mensajes
             create_session(session_id)
             history = get_session_messages(session_id) or []
             history.append({"role": "user", "content": user_text})
@@ -109,7 +89,7 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
 
             # Aplicar frases contextuales
             for frase in FRASES_CONTEXTUALES:
-                if contexto_coincide(user_text, frase["contexto"]) and random.random() < 0.4:
+                if any(p.lower() in user_text.lower() for p in frase["contexto"].split(",")) and random.random() < 0.4:
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
@@ -138,16 +118,9 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                # Burbujas enriquecidas con contexto del usuario
-                burbujas = enriquecer_burbujas_contextual(
-                    dividir_burbujas_aleatorio(reply_text),
-                    contexto=user_text,
-                    groq_client=groq_client
-                )
+                burbujas = enriquecer_burbujas_aleatorio(dividir_burbujas_aleatorio(reply_text))
                 for b in burbujas:
-                    await manager.send_personal_message(
-                        {"reply": [b], "session_id": session_id}, session_id
-                    )
+                    await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                     await asyncio.sleep(random.uniform(0.5, 1.5))
 
             except Exception as e:
