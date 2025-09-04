@@ -13,7 +13,7 @@ import speech_recognition as sr
 from groq import Groq
 from db import init_db, DB_PATH, create_session, save_message, get_session_messages
 from millercore.corazon import SYSTEM_ROLE, MENSAJES_INICIO, get_random_greeting, FRASES_CONTEXTUALES
-from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
+from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, generar_frase_contextual_groq
 
 
 # -------------------------------
