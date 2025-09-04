@@ -62,6 +62,9 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                     continue
 
                 history = get_session_messages(session_id) or []
+                if not history:
+                    continue
+
                 system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
                 messages_for_groq = system_messages + history
 
@@ -77,9 +80,12 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                     )
                     reply_text = response.choices[0].message.content.strip()
 
+                    # Usamos todo el historial como contexto
+                    contexto_completo = " ".join([m["content"] for m in history])
+
                     burbujas = enriquecer_burbujas_contextual(
                         dividir_burbujas_aleatorio(reply_text),
-                        contexto=reply_text,
+                        contexto=contexto_completo,
                         groq_client=groq_client
                     )
 
@@ -139,16 +145,19 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Pequeña lógica especial
+                # Lógica especial para respuestas negativas
                 if user_text.lower() in ["no", "no gracias", "prefiero no"]:
                     reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
+                # Usamos todo el historial como contexto
+                contexto_completo = " ".join([m["content"] for m in history])
+
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
-                    contexto=user_text,
+                    contexto=contexto_completo,
                     groq_client=groq_client
                 )
 
@@ -175,3 +184,4 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
         print("Error general en websocket:", repr(e))
         manager.disconnect(session_id)
         task.cancel()
+
