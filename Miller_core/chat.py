@@ -6,10 +6,10 @@ import random
 from typing import List
 from fastapi import WebSocket, WebSocketDisconnect
 
-from .burbuja_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
+from .burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
-from .db import create_session, save_message, get_session_messages
-from .init import groq_client, MODEL_ID
+from db import create_session, save_message, get_session_messages
+from .__init__ import groq_client, MODEL_ID
 
 class ConnectionManager:
     def __init__(self):

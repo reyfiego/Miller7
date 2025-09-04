@@ -1,5 +1,3 @@
-# ruta/auth.py
-
 import sqlite3
 import datetime
 import secrets
@@ -7,7 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
 from passlib.context import CryptContext
-from MillerCore.configuracion import DB_PATH, EMAIL_ADDRESS, EMAIL_PASSWORD, send_verification_email
+from miller_core.config import DB_PATH, EMAIL_ADDRESS, EMAIL_PASSWORD, send_verification_email
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")

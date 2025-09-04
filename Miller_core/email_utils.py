@@ -2,7 +2,7 @@
 
 import smtplib
 from email.message import EmailMessage
-from .configuración import EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_VERIFICATION_EXPIRATION_MINUTES
+from .config import EMAIL_ADDRESS, EMAIL_PASSWORD, EMAIL_VERIFICATION_EXPIRATION_MINUTES
 
 def send_verification_email(to_email: str, token: str):
     """

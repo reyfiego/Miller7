@@ -5,7 +5,7 @@ from typing import Dict
 from fastapi import WebSocket
 
 from modelos import get_session_messages, save_message
-from corazón import SYSTEM_ROLE, FRASES_CONTEXTUALES, dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
+from corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
 from groq import Groq
 import os
 
@@ -40,7 +40,7 @@ async def manejar_chat(websocket: WebSocket, session_id: str):
     
     try:
         # Saludo inicial
-        from corazón import get_random_greeting
+        from corazon import get_random_greeting
         saludo = get_random_greeting()
         if saludo:
             await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)

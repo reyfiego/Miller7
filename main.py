@@ -1,11 +1,8 @@
 # importante esto hara que se importe directamente la definicion necesaria para que el uvicorn monte el server(ojo aca)
-import sys
-import os
-
+import sys, os
 sys.path.append(os.path.dirname(__file__))
 
-from miller_core import app  
-
+from miller_core import app
 
 @app.on_event("startup")
 async def startup_event():
@@ -13,4 +10,4 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    print("Servidor cerrado")
+    print("El servidor esta cerrado")
