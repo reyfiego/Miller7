@@ -88,30 +88,50 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
+let userInteracted = false;
+let aiQueue = [];
+let aiWaitingResponse = false;
+
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  userInteracted = true;
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
+}
 
-  // Si Miller estaba esperando respuesta, liberamos la cola
-  if (aiWaitingResponse) {
-    aiWaitingResponse = false;
-    processAIQueue();
-  }
+function enqueueAI(text, waitForResponse = false) {
+  aiQueue.push({ text, waitForResponse });
+  processAIQueue();
+}
+
+function processAIQueue() {
+  if (aiQueue.length === 0 || aiWaitingResponse) return;
+
+  const next = aiQueue.shift();
+
+  // Solo enviar mensajes automáticos si el usuario interactuó
+  if (!next.waitForResponse && !userInteracted) return;
+
+  setTimeout(() => {
+    addBubble("ai", next.text);
+    if (next.waitForResponse) {
+      aiWaitingResponse = true;
+      userInteracted = false;
+    } else {
+      processAIQueue();
+    }
+  }, 700 + Math.random() * 500); // delay aleatorio entre 700-1200ms
 }
 
 // -------------------------
-// WEB SOCKET CON RECONEXIÓN Y COLA
+// WEB SOCKET CON RECONEXIÓN
 // -------------------------
 let ws;
-let aiQueue = [];
-let aiWaitingResponse = false;
-
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
@@ -122,21 +142,19 @@ function connectWS() {
     let data;
     try {
       data = JSON.parse(event.data);
-    } catch {
+    } catch (err) {
+      console.warn("Error parseando mensaje JSON:", err, "Mensaje crudo:", event.data);
+
+      // Limpiar headers tipo <|header_start|>...
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
+      // Quitar comillas sobrantes
       cleaned = cleaned.replace(/^"+|"+$/g, "");
+
       data = { reply: [cleaned] };
     }
 
     if (data.reply) {
-      data.reply.forEach(msg => {
-        if (msg.trim().endsWith("?")) {
-          aiQueue.push({ text: msg, waitForResponse: true });
-        } else {
-          aiQueue.push({ text: msg, waitForResponse: false });
-        }
-      });
-      processAIQueue();
+      data.reply.forEach(text => enqueueAI(text, /[?¿]$/.test(text))); // espera respuesta si termina con ?
     }
   };
 
@@ -147,19 +165,6 @@ connectWS();
 
 function reconnectWS() {
   if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-}
-
-function processAIQueue() {
-  if (aiQueue.length === 0 || aiWaitingResponse) return;
-
-  const next = aiQueue.shift();
-  addBubble("ai", next.text);
-
-  if (next.waitForResponse) {
-    aiWaitingResponse = true;
-  } else {
-    setTimeout(processAIQueue, 700);
-  }
 }
 
 // -------------------------
