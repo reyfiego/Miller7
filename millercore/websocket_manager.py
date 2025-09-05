@@ -2,15 +2,12 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
-import json
-import os, datetime, random, asyncio
+import json, os, datetime, random, asyncio
 from groq import Groq
 from millercore.corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
 from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, contexto_coincide
 
-# -------------------------------
-# CONFIG
-# -------------------------------
+# Carga configuración
 load_dotenv()
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
@@ -25,9 +22,6 @@ templates = Jinja2Templates(directory="templates")
 
 historiales = {}
 
-# -------------------------------
-# CONNECTION MANAGER
-# -------------------------------
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -53,14 +47,6 @@ class ConnectionManager:
         self.silence_mode.pop(session_id, None)
         print(f"Desconectado: {session_id}")
 
-    async def send_personal_message(self, message: str, session_id: str):
-        websocket = self.active_connections.get(session_id)
-        if websocket:
-            await websocket.send_text(message)
-            self.last_bubble_time[session_id] = datetime.datetime.now()
-            self.consecutive_bubbles[session_id] += 1
-            print(f"Mensaje enviado a {session_id}: {message[:50]}...")
-
     def update_activity(self, session_id: str):
         self.user_last_active[session_id] = datetime.datetime.now()
         self.consecutive_bubbles[session_id] = 0
@@ -68,19 +54,12 @@ class ConnectionManager:
             print(f"Modo silencio desactivado para {session_id} por actividad del usuario")
         self.silence_mode[session_id] = False
 
-    def set_silence_mode(self, session_id: str, value: bool):
-        self.silence_mode[session_id] = value
-        print(f"Modo silencio {'activado' if value else 'desactivado'} para {session_id}")
-
     def get_idle_users(self, timeout_seconds: int):
         now = datetime.datetime.now()
-        idle = [
+        return [
             sid for sid, ts in self.user_last_active.items()
             if (now - ts).total_seconds() > timeout_seconds and not self.silence_mode.get(sid, False)
         ]
-        if idle:
-            print(f"Usuarios inactivos sin modo silencio: {idle}")
-        return idle
 
 manager = ConnectionManager()
 
@@ -93,7 +72,7 @@ async def generar_mensaje_automatico(session_id: str) -> str:
             model=MODEL_ID,
             messages=messages_for_groq,
             max_tokens=150,
-            temperature=0.85,
+            temperature=0.9,
             top_p=0.95
         )
         return response.choices[0].message.content.strip()
@@ -108,110 +87,95 @@ async def generar_mensaje_automatico(session_id: str) -> str:
 async def auto_message_loop():
     while True:
         await asyncio.sleep(5)
-        idle_users = manager.get_idle_users(timeout_seconds=300)  # 5 minutos
+        idle_users = manager.get_idle_users(timeout_seconds=300)
         for sid in idle_users:
-            if manager.consecutive_bubbles.get(sid, 0) >= 3:
-                continue  # no enviar más de 3 burbujas consecutivas
+            if manager.consecutive_bubbles.get(sid, 0) >= 4:
+                continue
             last_time = manager.last_bubble_time.get(sid, datetime.datetime.min)
             if (datetime.datetime.now() - last_time).total_seconds() < 15:
                 continue
             msg = await generar_mensaje_automatico(sid)
-            await manager.send_personal_message(msg, sid)
+            burbujas = enriquecer_burbujas_contextual(
+                dividir_burbujas_aleatorio(msg),
+                contexto=historiales.get(sid, []),
+                max_burbujas=2
+            )
+            websocket = manager.active_connections.get(sid)
+            if websocket:
+                await websocket.send_text(json.dumps({"reply": burbujas}))
+                manager.last_bubble_time[sid] = datetime.datetime.now()
+                manager.consecutive_bubbles[sid] += len(burbujas)
+            await asyncio.sleep(random.uniform(5, 10))
 
 asyncio.create_task(auto_message_loop())
 
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
-
     if session_id not in historiales:
         historiales[session_id] = []
 
     saludo = get_random_greeting()
     if saludo:
-        # Saludo sin delay
-        await manager.send_personal_message(saludo, session_id)
+        # Saludo sin delay (string simple)
+        await websocket.send_text(json.dumps({"reply": saludo}))
+
+    ultima_respuesta_con_contexto = False
 
     try:
         while True:
-            # Esperar mensaje del usuario
             data = await websocket.receive_text()
+            manager.update_activity(session_id)
             try:
-                parsed = json.loads(data)
-                if isinstance(parsed, dict) and parsed.get("silence") is True:
-                    manager.set_silence_mode(session_id, True)
-                    continue
+                data_json = json.loads(data)
+                user_text = data_json.get("message", "").strip()
             except Exception:
-                pass  # No es JSON, continuar
+                user_text = data.strip()
 
-            user_text = data.strip()
             if not user_text:
                 continue
 
-            manager.update_activity(session_id)
             historiales[session_id].append({"role": "user", "content": user_text})
-            history = historiales[session_id]
 
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            for frase in FRASES_CONTEXTUALES:
-                contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
-                if contexto_coincide(user_text, contexto_lista) and random.random() < 0.4:
-                    contenido = frase["texto"]
-                    if frase.get("primera_persona"):
-                        contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
-                    system_messages.append({"role": "system", "content": f"Inspírate en esta frase para responder: {contenido}"})
 
-            messages_for_groq = system_messages + history
+            # Añadir frases contextuales solo si la última respuesta no las tuvo
+            if not ultima_respuesta_con_contexto:
+                for frase in FRASES_CONTEXTUALES:
+                    contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
+                    if contexto_coincide(user_text, contexto_lista) and random.random() < 0.1:
+                        contenido = frase["texto"]
+                        if frase.get("primera_persona"):
+                            contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
+                        system_messages.append({"role": "system", "content": f"Inspírate en esta frase para responder: {contenido}"})
+
+            messages_for_groq = system_messages + historiales[session_id]
 
             try:
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
                     messages=messages_for_groq,
                     max_tokens=250,
-                    temperature=0.85,
+                    temperature=0.9,
                     top_p=0.95
                 )
                 reply_text = response.choices[0].message.content.strip()
-
-                if user_text.lower() in ["no", "no gracias", "prefiero no"]:
-                    reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
-
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
-                contexto_completo = " ".join([m["content"] for m in historiales[session_id]])
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
-                    contexto=contexto_completo,
-                    groq_client=groq_client
+                    contexto=historiales[session_id],
+                    max_burbujas=2
                 )
 
-                # Enviar la primera burbuja sin delay
-                if burbujas:
-                    await manager.send_personal_message(burbujas[0], session_id)
+                await websocket.send_text(json.dumps({"reply": burbujas}))
+                manager.last_bubble_time[session_id] = datetime.datetime.now()
+                manager.consecutive_bubbles[session_id] += len(burbujas)
 
-                # Para las siguientes burbujas, esperar 10 segundos o hasta que el usuario envíe mensaje
-                for b in burbujas[1:]:
-                    try:
-                        # Esperar mensaje del usuario con timeout 10s
-                        data = await asyncio.wait_for(websocket.receive_text(), timeout=10)
-                        # Si llega mensaje, procesar inmediatamente (se sale del loop de burbujas)
-                        try:
-                            parsed = json.loads(data)
-                            if isinstance(parsed, dict) and parsed.get("silence") is True:
-                                manager.set_silence_mode(session_id, True)
-                                break
-                        except Exception:
-                            pass
-
-                        user_text = data.strip()
-                        if user_text:
-                            manager.update_activity(session_id)
-                            historiales[session_id].append({"role": "user", "content": user_text})
-                            # Salir del loop de burbujas para procesar nuevo input
-                            break
-                    except asyncio.TimeoutError:
-                        # No llegó mensaje en 10s, enviar siguiente burbuja
-                        await manager.send_personal_message(b, session_id)
+                ultima_respuesta_con_contexto = any(
+                    "Inspírate en esta frase para responder:" in m.get("content", "")
+                    for m in system_messages
+                )
 
             except Exception as e:
                 print("Error en chat:", repr(e))
@@ -220,7 +184,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
-                await manager.send_personal_message(random.choice(fallback_messages), session_id)
+                fallback = random.choice(fallback_messages)
+                await websocket.send_text(json.dumps({"reply": [fallback]}))
+                ultima_respuesta_con_contexto = False
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)

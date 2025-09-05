@@ -7,9 +7,6 @@ if (!sessionId) {
 
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
 
-// -------------------------
-// ELEMENTOS DOM
-// -------------------------
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
 const input = document.getElementById("prompt");
@@ -19,12 +16,10 @@ const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
-// Modal info
 const infoBtn = document.getElementById("info-btn");
 const modal = document.getElementById("info-modal");
 const closeModal = document.getElementById("close-modal");
 
-// Paneles login & registro
 const loginBtn = document.getElementById("login-btn");
 const registerBtn = document.getElementById("register-btn");
 const loginPanel = document.getElementById("login-panel");
@@ -36,9 +31,6 @@ const panelOverlay = document.getElementById("panel-overlay");
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
-// -------------------------
-// FUNCIONES DE UI
-// -------------------------
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
@@ -57,25 +49,16 @@ function closeElement(element) {
   }, 300);
 }
 
-// -------------------------
-// PANEL LOGIN & REGISTRO
-// -------------------------
 loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
 registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
 closeLogin.addEventListener("click", () => closeElement(loginPanel));
 closeRegister.addEventListener("click", () => closeElement(registerPanel));
 panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
 
-// -------------------------
-// MODAL INFO
-// -------------------------
 infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
 window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
 
-// -------------------------
-// CHAT
-// -------------------------
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -88,9 +71,6 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-// -------------------------
-// WEBSOCKET
-// -------------------------
 let ws;
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -106,17 +86,17 @@ function connectWS() {
       data = { reply: [event.data] };
     }
 
-    // Si es saludo (string simple), mostrar sin delay
+    // Mostrar saludo (string) sin delay
     if (typeof data.reply === "string") {
       addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
       return;
     }
 
-    // Si es array de burbujas, mostrar con delay natural (sin límite)
+    // Mostrar todas las burbujas con delay 5-10s
     if (Array.isArray(data.reply)) {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        await delay(5000 + Math.random() * 5000); // 5 a 10 segundos
+        await delay(5000 + Math.random() * 5000);
         addBubble("ai", msg);
       }
     }
@@ -130,6 +110,29 @@ connectWS();
 function reconnectWS() {
   if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
 }
+
+function send(text) {
+  addBubble("you", text);
+  input.value = "";
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: text }));
+  } else {
+    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
+    reconnectWS();
+  }
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (text) send(text);
+});
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// El resto del código frontend (micrófono, login, registro, etc.) permanece igual
 
 // -------------------------
 // ENVÍO DE MENSAJE
