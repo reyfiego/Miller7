@@ -119,17 +119,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in historiales:
         historiales[session_id] = []
 
+    # Inicializar historial de burbujas enviadas para no repetir
+    if "burbujas_enviadas" not in manager.__dict__:
+        manager.burbujas_enviadas = {}
+    if session_id not in manager.burbujas_enviadas:
+        manager.burbujas_enviadas[session_id] = set()
+
+    # Saludo inicial sin delay
     saludo = get_random_greeting()
     if saludo:
-        await websocket.send_text(json.dumps({"reply": saludo}))  # Saludo sin delay
+        manager.burbujas_enviadas[session_id].add(saludo)
+        await websocket.send_text(json.dumps({"reply": saludo}))
 
-    burbujas_enviadas = set()
     ultima_respuesta_con_contexto = False
 
     try:
         while True:
             data = await websocket.receive_text()
             manager.update_activity(session_id)
+
             try:
                 data_json = json.loads(data)
                 user_text = data_json.get("message", "").strip()
@@ -143,6 +151,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
+            # Añadir frases contextuales solo si la última respuesta no las tuvo
             if not ultima_respuesta_con_contexto:
                 for frase in FRASES_CONTEXTUALES:
                     contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
@@ -171,19 +180,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     max_burbujas=2
                 )
 
-                # Evitar repetición exacta, permitir variaciones leves
+                # CONTROL DE REPETICIÓN
                 nuevas_burbujas = []
                 for b in burbujas:
-                    if b not in burbujas_enviadas:
+                    if b not in manager.burbujas_enviadas[session_id]:
                         nuevas_burbujas.append(b)
-                        burbujas_enviadas.add(b)
+                        manager.burbujas_enviadas[session_id].add(b)
                     else:
-                        b_mod = b + "…" if not b.endswith("…") else b
+                        # Pequeña variación para no repetir exacto
+                        b_mod = b + "…" if not b.endswith("…") else b + "…"
                         nuevas_burbujas.append(b_mod)
-                        burbujas_enviadas.add(b_mod)
+                        manager.burbujas_enviadas[session_id].add(b_mod)
                 burbujas = nuevas_burbujas
 
-                # Enviar burbujas con delay
+                # Enviar burbujas con delay humano
                 for i, b in enumerate(burbujas):
                     if i == 0:  # primer burbuja sin delay
                         await websocket.send_text(json.dumps({"reply": b}))
@@ -201,12 +211,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             except Exception as e:
                 print("Error en chat:", repr(e))
+                # fallback controlado
                 fallback_messages = [
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 fallback = random.choice(fallback_messages)
+                if fallback in manager.burbujas_enviadas[session_id]:
+                    fallback += "…"  # pequeña variación
+                manager.burbujas_enviadas[session_id].add(fallback)
                 await websocket.send_text(json.dumps({"reply": [fallback]}))
                 ultima_respuesta_con_contexto = False
 
