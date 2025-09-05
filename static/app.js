@@ -90,8 +90,9 @@ function escapeHtml(str) {
 
 let awaitingUser = false;
 let autoMessageTimeout = null;
-let lastUserMessageTime = Date.now();
-let comebackSent = false;
+let lastUserInteraction = new Date();
+let consecutiveBubbles = 0;
+const MAX_CONSECUTIVE_BUBBLES = 2;
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -101,47 +102,36 @@ function send(text) {
   input.value = "";
   
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text, context: "" }));
+    ws.send(JSON.stringify({ message: text }));
     awaitingUser = true;
+    lastUserInteraction = new Date();
     clearTimeout(autoMessageTimeout);
     startAutoMessageTimer();
-    lastUserMessageTime = Date.now();
-    comebackSent = false;
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
 }
 
-// -------------------------
-// MENSAJE DE MILLER (IA)
-// -------------------------
 function sendMillerMessage(text) {
   addBubble("ai", text);
+  consecutiveBubbles++;
 }
 
 // -------------------------
-// DETECCIÓN DE AUSENCIA Y REGRESO
+// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(() => {
-    const now = Date.now();
-    if (awaitingUser && now - lastUserMessageTime > 15000) {
-      // Enviar al servidor para que Miller genere un mensaje natural
-      ws.send(JSON.stringify({ message: "", context: "silence" }));
+  autoMessageTimeout = setTimeout(async () => {
+    if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
+      // Pedir a la IA que genere un mensaje de retomar conversación
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ auto: true }));
+      }
+      startAutoMessageTimer();
     }
-  }, 15000);
-}
-
-function detectUserReturn() {
-  const now = Date.now();
-  if (now - lastUserMessageTime > 15000 && !comebackSent) {
-    ws.send(JSON.stringify({ message: "", context: "comeback" }));
-    comebackSent = true;
-  }
-  lastUserMessageTime = Date.now();
-  startAutoMessageTimer();
+  }, 15000); // 15 segundos sin respuesta
 }
 
 // -------------------------
@@ -166,6 +156,8 @@ function connectWS() {
 
     if (data.reply) {
       awaitingUser = false;
+      lastUserInteraction = new Date();
+      consecutiveBubbles = 0;
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
