@@ -42,14 +42,18 @@ const registerForm = document.getElementById("register-form");
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
+  if (element === loginPanel || element === registerPanel) {
+    panelOverlay.classList.add("active");
+  }
 }
 
 function closeElement(element) {
   element.classList.add("closing");
   setTimeout(() => {
     element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
+    if (element === loginPanel || element === registerPanel) {
+      panelOverlay.classList.remove("active");
+    }
   }, 300);
 }
 
@@ -84,50 +88,44 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-let aiQueue = [];
-let aiProcessing = false;
-
-function enqueueAI(message, expectResponse = false) {
-  aiQueue.push({ message, expectResponse });
-  if (!aiProcessing) processAIQueue();
-}
-
-function processAIQueue() {
-  if (aiQueue.length === 0) {
-    aiProcessing = false;
-    return;
-  }
-  aiProcessing = true;
-  const item = aiQueue.shift();
-  setTimeout(() => {
-    addBubble("ai", item.message);
-    // si la burbuja espera respuesta del usuario, pausamos la cola
-    if (!item.expectResponse) processAIQueue();
-    else aiProcessing = false; // esperamos respuesta del usuario
-  }, 800 + Math.random() * 400); // delay entre 0.8 y 1.2s
-}
-
-// -------------------------
-// ENVÍO DE MENSAJE
-// -------------------------
 function send(text) {
   addBubble("you", text);
   input.value = "";
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
   } else {
-    enqueueAI("❌ No hay conexión con el servidor. Intentando reconectar...");
+    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
 }
 
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) send(text);
-  // después de enviar, reactivar AI si estaba pausada
-  if (!aiProcessing && aiQueue.length > 0) processAIQueue();
-});
+// -------------------------
+// COLA DE MENSAJES AI
+// -------------------------
+let aiQueue = [];
+let aiWaitingUser = false;
+
+function enqueueAI(message, expectResponse = false) {
+  aiQueue.push({ message, expectResponse });
+  if (!aiWaitingUser) processAIQueue();
+}
+
+function processAIQueue() {
+  if (aiQueue.length === 0) {
+    aiWaitingUser = false;
+    return;
+  }
+  const item = aiQueue.shift();
+  setTimeout(() => {
+    addBubble("ai", item.message);
+
+    if (item.expectResponse) {
+      aiWaitingUser = true; // Espera respuesta del usuario
+    } else {
+      processAIQueue();
+    }
+  }, 800 + Math.random() * 400); // delay entre 0.8 y 1.2s
+}
 
 // -------------------------
 // WEB SOCKET CON RECONEXIÓN
@@ -145,15 +143,13 @@ function connectWS() {
       const data = JSON.parse(event.data);
       if (data.reply) messages = data.reply;
     } catch {
-      // si no es JSON, tratamos como mensaje plano
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
       cleaned = cleaned.replace(/^"+|"+$/g, "");
       if (cleaned) messages = [cleaned];
     }
 
     messages.forEach(msg => {
-      // si termina con ?, Miller espera respuesta
-      const expectResponse = /[?¿]$/.test(msg);
+      const expectResponse = /[?¿]$/.test(msg); // Solo espera respuesta si termina en pregunta
       enqueueAI(msg, expectResponse);
     });
   };
@@ -166,6 +162,21 @@ connectWS();
 function reconnectWS() {
   if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
 }
+
+// -------------------------
+// ENVÍO DE MENSAJE
+// -------------------------
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+  send(text);
+
+  if (aiWaitingUser) {
+    aiWaitingUser = false;
+    processAIQueue();
+  }
+});
 
 // -------------------------
 // MICROFONO
@@ -243,5 +254,4 @@ registerForm.addEventListener("submit", (e) => {
       closeElement(registerPanel);
     } else alert(data.message || "Error en registro");
   })
-  .catch(() => alert("Error al conectar con el servidor"));
-});
+  .catch(() => alert
