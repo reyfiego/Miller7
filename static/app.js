@@ -1,6 +1,3 @@
-// -------------------------
-// SESSION ID Y LOGIN
-// -------------------------
 const SESSION_KEY = "miller_session_id";
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
@@ -112,8 +109,14 @@ function connectWS() {
 
   ws.onopen = () => console.log("Conectado al WebSocket");
   ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    if (data.reply) data.reply.forEach(b => addBubble("ai", b));
+    try {
+      const data = JSON.parse(event.data);
+      if (data.reply && Array.isArray(data.reply)) {
+        data.reply.forEach(b => addBubble("ai", b));
+      }
+    } catch (err) {
+      console.error("Error parseando mensaje JSON:", err, "Mensaje recibido:", event.data);
+    }
   };
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
