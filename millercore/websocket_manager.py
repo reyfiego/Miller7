@@ -119,37 +119,41 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in historiales:
         historiales[session_id] = []
 
-    # Set para evitar repeticiones
-    burbujas_enviadas = set()
-
-    # --- Saludo inicial sin delay ---
     saludo = get_random_greeting()
     if saludo:
-        await websocket.send_text(json.dumps({"reply": saludo}))
-        burbujas_enviadas.add(saludo)
+        await websocket.send_text(json.dumps({"reply": saludo}))  # Saludo sin delay
 
-    primera_respuesta_usuario = True
+    burbujas_enviadas = set()
+    ultima_respuesta_con_contexto = False
 
     try:
         while True:
             data = await websocket.receive_text()
             manager.update_activity(session_id)
-            
-            # Extraer mensaje
             try:
                 data_json = json.loads(data)
                 user_text = data_json.get("message", "").strip()
             except Exception:
                 user_text = data.strip()
+
             if not user_text:
                 continue
 
             historiales[session_id].append({"role": "user", "content": user_text})
 
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            
-            # Generar respuesta Groq
+
+            if not ultima_respuesta_con_contexto:
+                for frase in FRASES_CONTEXTUALES:
+                    contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
+                    if contexto_coincide(user_text, contexto_lista) and random.random() < 0.1:
+                        contenido = frase["texto"]
+                        if frase.get("primera_persona"):
+                            contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
+                        system_messages.append({"role": "system", "content": f"Inspírate en esta frase para responder: {contenido}"})
+
             messages_for_groq = system_messages + historiales[session_id]
+
             try:
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
@@ -161,29 +165,39 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 reply_text = response.choices[0].message.content.strip()
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
-                # Dividir y enriquecer burbujas
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=historiales[session_id],
-                    max_burbujas=3
+                    max_burbujas=2
                 )
 
-                # Filtrar repetidas
-                burbujas = [b for b in burbujas if b not in burbujas_enviadas]
+                # Evitar repetición exacta, permitir variaciones leves
+                nuevas_burbujas = []
                 for b in burbujas:
-                    burbujas_enviadas.add(b)
+                    if b not in burbujas_enviadas:
+                        nuevas_burbujas.append(b)
+                        burbujas_enviadas.add(b)
+                    else:
+                        b_mod = b + "…" if not b.endswith("…") else b
+                        nuevas_burbujas.append(b_mod)
+                        burbujas_enviadas.add(b_mod)
+                burbujas = nuevas_burbujas
 
-                # Primer mensaje del usuario: sin delay
-                if primera_respuesta_usuario:
-                    await websocket.send_text(json.dumps({"reply": burbujas}))
-                    primera_respuesta_usuario = False
-                else:
-                    # Mensajes posteriores: enviar en "batch" para frontend con delay
-                    await websocket.send_text(json.dumps({"reply": burbujas, "delay": True}))
+                # Enviar burbujas con delay
+                for i, b in enumerate(burbujas):
+                    if i == 0:  # primer burbuja sin delay
+                        await websocket.send_text(json.dumps({"reply": b}))
+                    else:
+                        await asyncio.sleep(random.uniform(5, 10))
+                        await websocket.send_text(json.dumps({"reply": b}))
 
-                # Actualizar control interno
                 manager.last_bubble_time[session_id] = datetime.datetime.now()
                 manager.consecutive_bubbles[session_id] += len(burbujas)
+
+                ultima_respuesta_con_contexto = any(
+                    "Inspírate en esta frase para responder:" in m.get("content", "")
+                    for m in system_messages
+                )
 
             except Exception as e:
                 print("Error en chat:", repr(e))
@@ -192,10 +206,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
-                fallback = random.choice([f for f in fallback_messages if f not in burbujas_enviadas])
-                if fallback:
-                    burbujas_enviadas.add(fallback)
-                    await websocket.send_text(json.dumps({"reply": [fallback]}))
+                fallback = random.choice(fallback_messages)
+                await websocket.send_text(json.dumps({"reply": [fallback]}))
+                ultima_respuesta_con_contexto = False
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
