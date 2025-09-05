@@ -114,11 +114,20 @@ function connectWS() {
     try {
       data = JSON.parse(event.data);
     } catch (err) {
-      console.error("Error parseando mensaje JSON:", err, "Mensaje recibido:", event.data);
-      // Convertir texto plano a JSON
-      data = { reply: [event.data] };
+      console.warn("Error parseando mensaje JSON:", err, "Mensaje crudo:", event.data);
+
+      // Limpiar headers tipo <|header_start|>...
+      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
+
+      // Quitar comillas sobrantes
+      cleaned = cleaned.replace(/^"+|"+$/g, "");
+
+      data = { reply: [cleaned] };
     }
-    if (data.reply) data.reply.forEach(b => addBubble("ai", b));
+
+    if (data.reply) {
+      data.reply.forEach(b => addBubble("ai", b));
+    }
   };
 
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
