@@ -59,7 +59,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     temperature=0.85,
                     top_p=0.95
                 )
+                print("Respuesta completa de Groq:", response)
                 reply_text = response.choices[0].message.content.strip()
+                print("Texto respuesta:", reply_text)
 
                 # Guardar respuesta en historial
                 historial.append({"role": "assistant", "content": reply_text})
