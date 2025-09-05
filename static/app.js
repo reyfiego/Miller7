@@ -89,7 +89,7 @@ function escapeHtml(str) {
 }
 
 // -------------------------
-// WEBSOCKET OPTIMIZADO
+// WEBSOCKET
 // -------------------------
 let ws;
 function connectWS() {
@@ -98,7 +98,7 @@ function connectWS() {
 
   ws.onopen = () => console.log("Conectado al WebSocket");
 
-  ws.onmessage = (event) => {
+  ws.onmessage = async (event) => {
     let data;
     try {
       data = JSON.parse(event.data);
@@ -109,14 +109,13 @@ function connectWS() {
     }
 
     if (data.reply) {
-      const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3); // máximo 3 burbujas
+      // Filtrar mensajes vacíos y limitar a 3 burbujas
+      const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3);
 
-      // Enviar cada burbuja con un delay pequeño y aleatorio
-      bubbles.forEach((b, i) => {
-        setTimeout(() => {
-          addBubble("ai", b);
-        }, i * (200 + Math.random() * 400)); // 200-600ms entre burbujas
-      });
+      for (let b of bubbles) {
+        await delay(200 + Math.random() * 400); // 200-600ms delay aleatorio
+        addBubble("ai", b);
+      }
     } else if (typeof data === "string" && data.trim() !== "") {
       addBubble("ai", data);
     }
@@ -156,7 +155,7 @@ form.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// RETARDO ENTRE BURBUJAS
+// RETARDO
 // -------------------------
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
