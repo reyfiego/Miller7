@@ -1,21 +1,30 @@
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import datetime
 import asyncio
 import random
 import traceback
+import os
+from groq import Groq
 
-# Asumo que estas importaciones ya están definidas en tu proyecto
 from millercore.corazon import SYSTEM_ROLE, get_random_greeting, FRASES_CONTEXTUALES
 from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual
 from db import create_session, save_message, get_session_messages
-from groq import Groq
-import os
 
-# Inicialización Groq (asegúrate que API_KEY está en .env)
+# ==========================
+# Config Groq
+# ==========================
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 groq_client = Groq(api_key=API_KEY)
 
+# ==========================
+# Router
+# ==========================
+router = APIRouter()
+
+# ==========================
+# Connection Manager
+# ==========================
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -34,17 +43,24 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# ==========================
+# Función auxiliar
+# ==========================
 def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
-    """Verifica si el mensaje coincide con algún elemento del contexto previo."""
+    mensaje_lower = mensaje.lower()
     for frase in contexto:
-        if frase.lower() in mensaje.lower():
+        if frase.lower() in mensaje_lower:
             return True
     return False
 
-@app.websocket("/ws/chat/{session_id}")
+# ==========================
+# WebSocket
+# ==========================
+@router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
     ultima_interaccion = datetime.datetime.now()
+    task = None
 
     async def enviar_mensajes_periodicos():
         nonlocal ultima_interaccion
@@ -73,7 +89,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 reply_text = response.choices[0].message.content.strip()
 
                 contexto_completo = " ".join([m["content"] for m in history])
-
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
@@ -87,15 +102,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "assistant", reply_text)
 
             except Exception as e:
-                print(f"Error en mensaje automático: {e}")
+                print(f"Error en mensaje automático: {repr(e)}")
                 traceback.print_exc()
-
-    task = asyncio.create_task(enviar_mensajes_periodicos())
 
     try:
         saludo = get_random_greeting()
         if saludo:
             await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
+
+        task = asyncio.create_task(enviar_mensajes_periodicos())
 
         while True:
             data = await websocket.receive_json()
@@ -110,14 +125,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 continue
 
             create_session(session_id)
+            save_message(session_id, "user", user_text)
+
             history = get_session_messages(session_id) or []
-            history.append({"role": "user", "content": user_text})
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
-            # Aplicar frases contextuales predefinidas
             for frase in FRASES_CONTEXTUALES:
-                # Aseguramos que frase["contexto"] es lista
-                contexto_lista = [p.strip() for p in frase["contexto"]] if isinstance(frase["contexto"], list) else [p.strip() for p in frase["contexto"].split(",")]
+                contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [p.strip() for p in frase["contexto"].split(",")]
                 if contexto_coincide(user_text, contexto_lista) and random.random() < 0.4:
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
@@ -144,11 +158,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 if user_text.lower() in ["no", "no gracias", "prefiero no"]:
                     reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
-                save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
-
                 contexto_completo = " ".join([m["content"] for m in history])
-
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
@@ -160,7 +171,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     await asyncio.sleep(random.uniform(0.5, 1.5))
 
             except Exception as e:
-                print(f"Error en chat: {e}")
+                print(f"Error en chat: {repr(e)}")
                 traceback.print_exc()
                 fallback_messages = [
                     "El silencio también tiene cosas que decir.",
@@ -173,10 +184,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
 
     except WebSocketDisconnect:
+        print(f"Desconexión websocket session {session_id}")
         manager.disconnect(session_id)
-        task.cancel()
+        if task:
+            task.cancel()
     except Exception as e:
-        print(f"Error general en websocket: {e}")
+        print(f"Error general en websocket: {repr(e)}")
         traceback.print_exc()
         manager.disconnect(session_id)
-        task.cancel()
+        if task:
+            task.cancel()
