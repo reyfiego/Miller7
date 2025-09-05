@@ -67,6 +67,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 historial.append({"role": "assistant", "content": reply_text})
                 historiales[session_id] = historial
 
+                print(f"Enviando a cliente: {reply_text}")  # <-- Aquí agregamos el print para depurar
+
                 await manager.send_personal_message(reply_text, session_id)
 
             except Exception as e:
