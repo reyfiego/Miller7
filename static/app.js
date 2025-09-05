@@ -19,58 +19,12 @@ const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
-// Modal info
-const infoBtn = document.getElementById("info-btn");
-const modal = document.getElementById("info-modal");
-const closeModal = document.getElementById("close-modal");
-
 // Paneles login & registro
-const loginBtn = document.getElementById("login-btn");
-const registerBtn = document.getElementById("register-btn");
-const loginPanel = document.getElementById("login-panel");
-const registerPanel = document.getElementById("register-panel");
-const closeLogin = document.getElementById("close-login");
-const closeRegister = document.getElementById("close-register");
-const panelOverlay = document.getElementById("panel-overlay");
-
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// FUNCIONES DE UI
-// -------------------------
-function openElement(element) {
-  element.classList.add("active");
-  element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
-}
-
-function closeElement(element) {
-  element.classList.add("closing");
-  setTimeout(() => {
-    element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
-  }, 300);
-}
-
-// -------------------------
-// PANEL LOGIN & REGISTRO
-// -------------------------
-loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
-registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
-closeLogin.addEventListener("click", () => closeElement(loginPanel));
-closeRegister.addEventListener("click", () => closeElement(registerPanel));
-panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
-
-// -------------------------
-// MODAL INFO
-// -------------------------
-infoBtn.addEventListener("click", () => openElement(modal));
-closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
-
-// -------------------------
-// CHAT
+// UI
 // -------------------------
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
@@ -85,56 +39,12 @@ function escapeHtml(str) {
 }
 
 // -------------------------
-// COLA DE MENSAJES Y LÓGICA DE RESPUESTA
-// -------------------------
-let messageQueue = [];
-let processingQueue = false;
-let waitingUserResponse = true; // Al inicio espera interacción del usuario
-let lastUserMessage = "";
-
-function queueMessages(messages) {
-  messages.forEach(m => messageQueue.push(m));
-  if (!processingQueue) processQueue();
-}
-
-async function processQueue() {
-  processingQueue = true;
-  while (messageQueue.length > 0) {
-    const msg = messageQueue.shift();
-    addBubble("ai", msg);
-    // Delay entre burbujas
-    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
-  }
-  processingQueue = false;
-  waitingUserResponse = true; // Después de vaciar la cola, espera respuesta del usuario
-}
-
-// -------------------------
-// ENVÍO DE MENSAJE
-// -------------------------
-function send(text) {
-  addBubble("you", text);
-  lastUserMessage = text;
-  input.value = "";
-  waitingUserResponse = false; // Cuando el usuario envía algo, Miller puede responder
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text }));
-  } else {
-    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-    reconnectWS();
-  }
-}
-
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) send(text);
-});
-
-// -------------------------
-// WEB SOCKET CON RECONEXIÓN
+// WEB SOCKET CON COLA Y TURNO
 // -------------------------
 let ws;
+let messageQueue = [];
+let userCanRespond = true; // al inicio espera mensaje del usuario
+
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
@@ -142,34 +52,60 @@ function connectWS() {
   ws.onopen = () => console.log("Conectado al WebSocket");
 
   ws.onmessage = (event) => {
-    let messages = [];
-
-    // Intentar parsear JSON
+    let newMessages = [];
     try {
       const data = JSON.parse(event.data);
-      if (data.reply) messages = data.reply;
+      if (data.reply) newMessages = data.reply;
     } catch {
-      // Texto plano
-      messages = [event.data.trim()];
+      // Si no es JSON válido, lo tomamos como mensaje crudo
+      newMessages = [event.data.trim()];
     }
 
-    // Filtrar mensajes vacíos o solo puntos suspensivos
-    messages = messages.filter(m => m && m !== "…");
-
-    // Solo procesar si el usuario ya respondió
-    if (!waitingUserResponse) {
-      queueMessages(messages);
-    }
+    messageQueue.push(...newMessages);
+    processQueue();
   };
 
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
 }
+
+function processQueue() {
+  if (userCanRespond || messageQueue.length === 0) return;
+
+  const msg = messageQueue.shift();
+
+  // Delay opcional para dar sensación humana
+  setTimeout(() => {
+    addBubble("ai", msg);
+    processQueue(); // procesa siguiente mensaje de la cola si hay
+  }, 500 + Math.random() * 500); // 0.5s a 1s aleatorio
+}
+
+function send(text) {
+  if (!text.trim()) return;
+  addBubble("you", text);
+  input.value = "";
+
+  userCanRespond = false; // bloquea hasta que Miller responda
+
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: text }));
+  } else {
+    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
+    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+  }
+}
+
 connectWS();
 
-function reconnectWS() {
-  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-}
+// -------------------------
+// ENVÍO DE MENSAJE
+// -------------------------
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (text) send(text);
+});
 
 // -------------------------
 // MICROFONO
@@ -219,7 +155,6 @@ loginForm.addEventListener("submit", (e) => {
       alert("Inicio de sesión exitoso");
       loggedIn = true;
       localStorage.setItem("miller_logged_in", "true");
-      closeElement(loginPanel);
     } else alert(data.message || "Error en inicio de sesión");
   })
   .catch(() => alert("Error al conectar con el servidor"));
@@ -244,7 +179,6 @@ registerForm.addEventListener("submit", (e) => {
   .then(data => {
     if (data.success) {
       alert("Registro exitoso, ya puedes iniciar sesión");
-      closeElement(registerPanel);
     } else alert(data.message || "Error en registro");
   })
   .catch(() => alert("Error al conectar con el servidor"));
