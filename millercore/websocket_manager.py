@@ -23,6 +23,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 historiales = {}
+esperando_respuesta = {}  # <-- Nueva variable para saber si Miller está esperando al usuario
 
 # -------------------------------
 # CONNECTION MANAGER
@@ -40,6 +41,7 @@ class ConnectionManager:
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
         self.user_last_active.pop(session_id, None)
+        esperando_respuesta.pop(session_id, None)
 
     async def send_personal_message(self, message: str, session_id: str):
         websocket = self.active_connections.get(session_id)
@@ -64,10 +66,6 @@ async def enviar_respuesta(session_id: str, reply_text: str):
     await manager.send_personal_message(clean_text, session_id)
 
 def es_pregunta_directa(texto: str):
-    """
-    Detecta preguntas concretas que Miller puede responder directamente
-    (por ejemplo, matemáticas simples o consultas triviales).
-    """
     try:
         if "+" in texto or "-" in texto or "*" in texto or "/" in texto:
             return str(eval(texto))
@@ -104,11 +102,13 @@ async def auto_message_loop():
         await asyncio.sleep(5)
         idle_users = manager.get_idle_users(timeout_seconds=15)
         for sid in idle_users:
+            # Solo enviar mensaje automático si no está esperando respuesta del usuario
+            if esperando_respuesta.get(sid, False):
+                continue
             msg = await generar_mensaje_automatico(sid)
             await enviar_respuesta(sid, msg)
-            manager.update_activity(sid)  # evita que se repita demasiado rápido
+            manager.update_activity(sid)
 
-# Inicia el loop de mensajes automáticos en segundo plano
 asyncio.create_task(auto_message_loop())
 
 # -------------------------------
@@ -122,17 +122,22 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in historiales:
         historiales[session_id] = []
 
-    # Saludo inicial (solo 1 burbuja)
+    esperando_respuesta[session_id] = False
+
+    # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
         await enviar_respuesta(session_id, saludo)
 
     async def mensajes_periodicos():
         while True:
-            await asyncio.sleep(30)  # chequear cada 30s
+            await asyncio.sleep(30)
             tiempo_inactivo = (datetime.datetime.now() - ultima_interaccion).seconds
-            if tiempo_inactivo < 90:  # solo enviar si ha estado inactivo >= 90s
+            if tiempo_inactivo < 90:
                 continue
+
+            if esperando_respuesta.get(session_id, False):
+                continue  # Miller espera respuesta, no enviar burbujas automáticas
 
             history = historiales.get(session_id, [])
             if not history:
@@ -156,11 +161,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
                     groq_client=groq_client,
-                    max_burbujas=2,  # máximo 2 burbujas automáticas
+                    max_burbujas=2,
                     relevancia_minima=0.8
                 )
 
-                # Evitar repeticiones
                 burbujas_previas = set([b["content"] for b in historiales[session_id] if b["role"] == "assistant"])
                 for b in burbujas[:2]:
                     if b not in burbujas_previas:
@@ -181,22 +185,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             user_text = data.strip()
             ultima_interaccion = datetime.datetime.now()
             manager.update_activity(session_id)
+            esperando_respuesta[session_id] = False  # El usuario respondió, Miller ya no espera
 
             if not user_text:
-                continue  # no enviar nada si está vacío
+                continue
 
-            # Responder directamente si es pregunta simple
-            respuesta_directa = es_pregunta_directa(user_text)
-            if respuesta_directa:
-                await enviar_respuesta(session_id, respuesta_directa)
-                historiales[session_id].append({"role": "user", "content": user_text})
-                historiales[session_id].append({"role": "assistant", "content": respuesta_directa})
+            # Chequear pregunta directa (ej: 1+1)
+            resultado = es_pregunta_directa(user_text)
+            if resultado is not None:
+                await enviar_respuesta(session_id, resultado)
                 continue
 
             historiales[session_id].append({"role": "user", "content": user_text})
             history = historiales[session_id]
 
-            # Construir mensajes del sistema
+            # Mensajes contextuales
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             for frase in FRASES_CONTEXTUALES:
                 contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
@@ -218,9 +221,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Ajustar número de burbujas según longitud del mensaje del usuario
                 max_burbujas = 1 if len(user_text.split()) <= 3 else 2
-
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
                 contexto_completo = " ".join([m["content"] for m in historiales[session_id]])
@@ -239,6 +240,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         burbujas_previas.add(b)
                         await asyncio.sleep(random.uniform(0.5, 1.2))
 
+                esperando_respuesta[session_id] = True  # Miller ha respondido y ahora espera usuario
+
             except Exception as e:
                 print("Error en chat:", repr(e))
                 fallback_messages = [
@@ -247,6 +250,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 await enviar_respuesta(session_id, random.choice(fallback_messages))
+                esperando_respuesta[session_id] = True
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)

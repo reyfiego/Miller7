@@ -123,15 +123,14 @@ function sendMillerMessage(text) {
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(async () => {
+  autoMessageTimeout = setTimeout(() => {
     if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
-      // Pedir a la IA que genere un mensaje de retomar conversación
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ auto: true }));
       }
       startAutoMessageTimer();
     }
-  }, 15000); // 15 segundos sin respuesta
+  }, 10000 + Math.random() * 5000); // 10–15s para que sea más humano
 }
 
 // -------------------------
@@ -274,7 +273,11 @@ registerForm.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// DETECTAR CUANDO EL USUARIO REGRESA
+// DETECCIÓN DE ACTIVIDAD DEL USUARIO
 // -------------------------
+function detectUserReturn() {
+  lastUserInteraction = new Date();
+  awaitingUser = false;
+}
 window.addEventListener("mousemove", detectUserReturn);
 window.addEventListener("keydown", detectUserReturn);
