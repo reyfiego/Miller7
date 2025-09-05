@@ -88,83 +88,6 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-let awaitingUser = false;
-let autoMessageTimeout = null;
-let lastUserInteraction = new Date();
-let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 2;
-
-// -------------------------
-// NUEVO: MODO SILENCIO
-// -------------------------
-let silenceMode = false;
-const SILENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutos sin respuesta
-let silenceTimer = null;
-
-// -------------------------
-// ENVÍO DE MENSAJE
-// -------------------------
-function send(text) {
-  addBubble("you", text);
-  input.value = "";
-
-  awaitingUser = true;
-  consecutiveBubbles = 0;
-  lastUserInteraction = new Date();
-  silenceMode = false;
-  clearTimeout(autoMessageTimeout);
-  clearTimeout(silenceTimer);
-  startSilenceTimer();
-
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text }));
-  } else {
-    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-    reconnectWS();
-  }
-
-  startAutoMessageTimer();
-}
-
-// -------------------------
-// TIMER DE MODO SILENCIO
-// -------------------------
-function startSilenceTimer() {
-  clearTimeout(silenceTimer);
-  silenceTimer = setTimeout(() => {
-    silenceMode = true;
-    console.log("Modo silencio activado: Miller no enviará más mensajes automáticos hasta que el usuario escriba.");
-  }, SILENCE_TIMEOUT);
-}
-
-// -------------------------
-// MENSAJES AUTOMÁTICOS
-// -------------------------
-function startAutoMessageTimer() {
-  clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(() => {
-    if (!awaitingUser) return;
-    if (consecutiveBubbles >= MAX_CONSECUTIVE_BUBBLES) return;
-    if (silenceMode) return;
-
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({ auto: true }));
-      consecutiveBubbles++;
-    }
-
-    if (consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) startAutoMessageTimer();
-  }, 15000); // 15 segundos
-}
-
-function detectUserReturn() {
-  lastUserInteraction = new Date();
-  silenceMode = false;
-  clearTimeout(silenceTimer);
-  startSilenceTimer();
-}
-window.addEventListener("mousemove", detectUserReturn);
-window.addEventListener("keydown", detectUserReturn);
-
 // -------------------------
 // WEBSOCKET
 // -------------------------
@@ -186,17 +109,12 @@ function connectWS() {
     }
 
     if (data.reply) {
-      awaitingUser = false;
-      lastUserInteraction = new Date();
-      consecutiveBubbles = 0;
-      clearTimeout(autoMessageTimeout);
-
       for (let b of data.reply) {
         await delay(500 + Math.random() * 800);
         addBubble("ai", b);
       }
-
-      startAutoMessageTimer();
+    } else if (typeof data === "string") {
+      addBubble("ai", data);
     }
   };
 
@@ -207,6 +125,21 @@ connectWS();
 
 function reconnectWS() {
   if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
+
+// -------------------------
+// ENVÍO DE MENSAJE
+// -------------------------
+function send(text) {
+  addBubble("you", text);
+  input.value = "";
+
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: text }));
+  } else {
+    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
+    reconnectWS();
+  }
 }
 
 // -------------------------
@@ -303,5 +236,3 @@ registerForm.addEventListener("submit", (e) => {
   })
   .catch(() => alert("Error al conectar con el servidor"));
 });
-
-
