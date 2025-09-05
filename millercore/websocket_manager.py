@@ -209,5 +209,5 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         manager.disconnect(session_id)
     except Exception as e:
-        print("Error general en websocket:", repr(e))
+        print("Error general en el websocket:", repr(e))
         manager.disconnect(session_id)
