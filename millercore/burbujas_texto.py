@@ -36,8 +36,7 @@ def dividir_burbujas_aleatorio(texto: str) -> list[str]:
             temp = (temp + " " + frase).strip()
     if temp:
         burbujas.append(temp.strip())
-    return burbujas
-
+    return burbujas[:4]  # máximo 4 burbujas por respuesta
 
 def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
     """
@@ -48,7 +47,6 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
         if frase.lower() in mensaje_lower:
             return True
     return False
-
 
 def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
     """
@@ -73,7 +71,6 @@ No uses más de 20 palabras.
         print("⚠️ Error generando frase contextual con Groq:", e)
         return ""
 
-
 def enriquecer_burbujas_contextual(
     burbujas: list[str],
     contexto: str | list[str],
@@ -81,17 +78,19 @@ def enriquecer_burbujas_contextual(
 ) -> list[str]:
     """
     Enriquece las burbujas agregando frases cortas basadas en el contexto.
-    Permite que el contexto sea string o lista de strings.
+    Limita el número de frases añadidas para mantener naturalidad.
     """
     if isinstance(contexto, list):
         contexto = " ".join(contexto)
 
     resultado = []
     for b in burbujas:
+        # evitar que una burbuja termine con múltiples puntos suspensivos
+        b = re.sub(r'…{2,}$', '…', b.strip())
         resultado.append(b)
 
-        # 60% de probabilidad de añadir frase contextual
-        if random.random() < 0.6 and not b.endswith("?"):
+        # 40% de probabilidad de añadir frase contextual
+        if random.random() < 0.4 and not b.endswith("?") and len(resultado) < 4:
             frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
             if frase_contextual:
                 resultado.append(frase_contextual)
