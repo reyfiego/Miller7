@@ -113,21 +113,28 @@ function send(text) {
   }
 }
 
+function sendMillerMessage(text) {
+  addBubble("ai", text);
+  consecutiveBubbles++;
+}
+
 // -------------------------
-// MENSAJES AUTOMÁTICOS
+// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
   autoMessageTimeout = setTimeout(async () => {
     if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ auto: true }));
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ auto: true }));
+      }
       startAutoMessageTimer();
     }
-  }, 15000); // 15 segundos de inactividad
+  }, 15000); // 15 segundos sin respuesta
 }
 
 // -------------------------
-// WEB SOCKET
+// WEB SOCKET CON RECONEXIÓN
 // -------------------------
 let ws;
 function connectWS() {
@@ -138,8 +145,9 @@ function connectWS() {
 
   ws.onmessage = async (event) => {
     let data;
-    try { data = JSON.parse(event.data); } 
-    catch (err) {
+    try {
+      data = JSON.parse(event.data);
+    } catch (err) {
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
       cleaned = cleaned.replace(/^"+|"+$/g, "");
       data = { reply: [cleaned] };
@@ -152,7 +160,7 @@ function connectWS() {
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
-        await delay(800 + Math.random() * 700); // pausas humanas
+        await delay(500 + Math.random() * 800);
         addBubble("ai", b);
       }
 
@@ -269,3 +277,7 @@ registerForm.addEventListener("submit", (e) => {
 // -------------------------
 window.addEventListener("mousemove", detectUserReturn);
 window.addEventListener("keydown", detectUserReturn);
+
+function detectUserReturn() {
+  lastUserInteraction = new Date();
+}
