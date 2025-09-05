@@ -92,7 +92,7 @@ let awaitingUser = false;
 let autoMessageTimeout = null;
 let lastUserInteraction = new Date();
 let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 2;
+const MAX_CONSECUTIVE_BUBBLES = 3;
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -105,6 +105,7 @@ function send(text) {
     ws.send(JSON.stringify({ message: text }));
     awaitingUser = true;
     lastUserInteraction = new Date();
+    consecutiveBubbles = 0; // reset al enviar mensaje del usuario
     clearTimeout(autoMessageTimeout);
     startAutoMessageTimer();
   } else {
@@ -123,14 +124,14 @@ function sendMillerMessage(text) {
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(() => {
+  autoMessageTimeout = setTimeout(async () => {
     if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ auto: true }));
       }
-      // No reiniciamos el timer aquí; se reinicia al recibir respuesta
+      startAutoMessageTimer();
     }
-  }, 15000); // 15 segundos sin respuesta
+  }, 15000); // 15 segundos de inactividad
 }
 
 // -------------------------
@@ -160,8 +161,9 @@ function connectWS() {
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
+        if (consecutiveBubbles >= MAX_CONSECUTIVE_BUBBLES) break;
         await delay(500 + Math.random() * 800);
-        addBubble("ai", b);
+        sendMillerMessage(b);
       }
 
       startAutoMessageTimer();
@@ -275,9 +277,5 @@ registerForm.addEventListener("submit", (e) => {
 // -------------------------
 // DETECTAR CUANDO EL USUARIO REGRESA
 // -------------------------
-window.addEventListener("mousemove", detectUserReturn);
-window.addEventListener("keydown", detectUserReturn);
-
-function detectUserReturn() {
-  lastUserInteraction = new Date();
-}
+window.addEventListener("mousemove", () => lastUserInteraction = new Date());
+window.addEventListener("keydown", () => lastUserInteraction = new Date());
