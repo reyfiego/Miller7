@@ -122,7 +122,7 @@ function connectWS() {
 
       // Cada burbuja tiene su propio delay aleatorio, no bloqueante
       bubbles.forEach((b, i) => {
-        setTimeout(() => addBubble("ai", b), 200 + Math.random() * 600 * i);
+        setTimeout(() => addBubble("ai", b), 20 + Math.random() * 60 * i);
       });
 
       // Reinicia temporizador de espera
