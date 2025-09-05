@@ -52,6 +52,13 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 # -------------------------------
+# ENDPOINT HTTP PARA HTML
+# -------------------------------
+@app.get("/")
+async def root():
+    return FileResponse("static/index.html")  # Asegúrate de que este archivo exista
+
+# -------------------------------
 # WEBSOCKET CHAT
 # -------------------------------
 @app.websocket("/ws/chat/{session_id}")
@@ -172,3 +179,23 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         print("Error general en websocket:", repr(e))
         manager.disconnect(session_id)
         task.cancel()
+
+# -------------------------------
+# ENDPOINT DE AUDIO
+# -------------------------------
+@app.post("/audio")
+async def audio_to_text(file: UploadFile = File(...)):
+    try:
+        path = f"temp_{uuid.uuid4()}.wav"
+        with open(path, "wb") as f:
+            f.write(await file.read())
+
+        recognizer = sr.Recognizer()
+        with sr.AudioFile(path) as source:
+            audio = recognizer.record(source)
+        text = recognizer.recognize_google(audio, language="es-ES")
+        os.remove(path)
+        return {"text": text}
+    except Exception as e:
+        print("Error en /audio:", repr(e))
+        return {"text": "", "error": str(e)}
