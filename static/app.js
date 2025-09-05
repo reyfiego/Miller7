@@ -19,11 +19,6 @@ const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
-// Modal info
-const infoBtn = document.getElementById("info-btn");
-const modal = document.getElementById("info-modal");
-const closeModal = document.getElementById("close-modal");
-
 // Paneles login & registro
 const loginBtn = document.getElementById("login-btn");
 const registerBtn = document.getElementById("register-btn");
@@ -67,15 +62,12 @@ closeRegister.addEventListener("click", () => closeElement(registerPanel));
 panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
 
 // -------------------------
-// MODAL INFO
-// -------------------------
-infoBtn.addEventListener("click", () => openElement(modal));
-closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
-
-// -------------------------
 // CHAT
 // -------------------------
+let waitingUserResponse = false; // controla si Miller debe esperar respuesta
+let messageQueue = []; // cola de mensajes para mostrar con delay
+let lastUserMessage = ""; // último mensaje del usuario
+
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -88,43 +80,34 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
+// Mostrar mensajes en cola con delay
+function processQueue() {
+  if (messageQueue.length === 0) return;
+  const msg = messageQueue.shift();
+  addBubble("ai", msg);
+  if (messageQueue.length > 0) {
+    setTimeout(processQueue, 1200); // delay entre burbujas
+  } else {
+    waitingUserResponse = msg.endsWith("?"); // si termina en pregunta, espera respuesta
+  }
+}
+
+function queueMessages(messages) {
+  messageQueue.push(...messages);
+  if (messageQueue.length === messages.length) processQueue();
+}
+
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  lastUserMessage = text;
+  waitingUserResponse = false;
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
-}
-
-// -------------------------
-// COLA DE MENSAJES AI
-// -------------------------
-let aiQueue = [];
-let aiWaitingUser = false;
-
-function enqueueAI(message, expectResponse = false) {
-  aiQueue.push({ message, expectResponse });
-  if (!aiWaitingUser) processAIQueue();
-}
-
-function processAIQueue() {
-  if (aiQueue.length === 0) {
-    aiWaitingUser = false;
-    return;
-  }
-  const item = aiQueue.shift();
-  setTimeout(() => {
-    addBubble("ai", item.message);
-
-    if (item.expectResponse) {
-      aiWaitingUser = true; // Espera respuesta del usuario
-    } else {
-      processAIQueue();
-    }
-  }, 800 + Math.random() * 400); // delay entre 0.8 y 1.2s
 }
 
 // -------------------------
@@ -138,20 +121,25 @@ function connectWS() {
   ws.onopen = () => console.log("Conectado al WebSocket");
 
   ws.onmessage = (event) => {
-    let messages = [];
+    let data;
     try {
-      const data = JSON.parse(event.data);
-      if (data.reply) messages = data.reply;
-    } catch {
+      data = JSON.parse(event.data);
+    } catch (err) {
+      console.warn("Error parseando mensaje JSON:", err, "Mensaje crudo:", event.data);
+
+      // Limpiar headers tipo <|header_start|>...
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
+
+      // Quitar comillas sobrantes
       cleaned = cleaned.replace(/^"+|"+$/g, "");
-      if (cleaned) messages = [cleaned];
+
+      data = { reply: [cleaned] };
     }
 
-    messages.forEach(msg => {
-      const expectResponse = /[?¿]$/.test(msg); // Solo espera respuesta si termina en pregunta
-      enqueueAI(msg, expectResponse);
-    });
+    // Solo procesa si no está esperando respuesta del usuario
+    if (!waitingUserResponse && data.reply) {
+      queueMessages(data.reply);
+    }
   };
 
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
@@ -169,13 +157,7 @@ function reconnectWS() {
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
-  if (!text) return;
-  send(text);
-
-  if (aiWaitingUser) {
-    aiWaitingUser = false;
-    processAIQueue();
-  }
+  if (text) send(text);
 });
 
 // -------------------------
