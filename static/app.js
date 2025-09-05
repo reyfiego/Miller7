@@ -1,4 +1,4 @@
-const SESSION_KEY = "miller_session_id";
+const SESSION_KEY = "miller_session_id"; 
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
   sessionId = crypto.randomUUID();
@@ -97,9 +97,6 @@ let autoMessageTimeout = null; // Temporizador de mensajes automáticos
 // -------------------------
 // WEBSOCKET
 // -------------------------
-// -------------------------
-// WEBSOCKET
-// -------------------------
 let ws;
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -118,34 +115,41 @@ function connectWS() {
     }
 
     if (data.reply && !awaitingUser) {
-      awaitingUser = true;
+      awaitingUser = true; 
       clearTimeout(autoMessageTimeout);
 
-      // ✅ ahora Miller envía hasta 3 burbujas seguidas con intervalo random
-      for (let i = 0; i < Math.min(data.reply.length, 3); i++) {
-        let b = data.reply[i];
-        let randomDelay = 300 + Math.random() * 900; // entre 0.3s y 1.2s
+      // ✅ Miller ahora puede enviar hasta 3 burbujas con delay aleatorio
+      let bubbleCount = 0;
+      for (let b of data.reply) {
+        if (bubbleCount >= 3) break;  
+        let randomDelay = 300 + Math.random() * 900; // 0.3s - 1.2s
         await delay(randomDelay);
         addBubble("ai", b);
+        bubbleCount++;
       }
 
-      // desbloqueo si el usuario no responde después de un rato
       autoMessageTimeout = setTimeout(() => {
         awaitingUser = false;
-      }, 12000); // 12s
+      }, 12000); // 12 segundos de inactividad
+    } else if (typeof data === "string") {
+      addBubble("ai", data);
     }
   };
 
-  ws.onclose = () => {
-    console.log("WebSocket cerrado. Reconectando en 3s...");
-    setTimeout(connectWS, 3000);
+  ws.onclose = () => { 
+    console.log("WebSocket cerrado. Reconectando en 3s..."); 
+    setTimeout(connectWS, 3000); 
   };
-  ws.onerror = (err) => {
-    console.error("Error WebSocket:", err);
-    ws.close();
+  ws.onerror = (err) => { 
+    console.error("Error WebSocket:", err); 
+    ws.close(); 
   };
 }
+connectWS();
 
+function reconnectWS() {
+  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
 
 // -------------------------
 // ENVÍO DE MENSAJE
