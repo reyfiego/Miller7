@@ -113,28 +113,21 @@ function send(text) {
   }
 }
 
-function sendMillerMessage(text) {
-  addBubble("ai", text);
-  consecutiveBubbles++;
-}
-
 // -------------------------
-// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
+// MENSAJES AUTOMÁTICOS
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(() => {
+  autoMessageTimeout = setTimeout(async () => {
     if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ auto: true }));
-      }
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ auto: true }));
       startAutoMessageTimer();
     }
-  }, 10000 + Math.random() * 5000); // 10–15s para que sea más humano
+  }, 15000); // 15 segundos de inactividad
 }
 
 // -------------------------
-// WEB SOCKET CON RECONEXIÓN
+// WEB SOCKET
 // -------------------------
 let ws;
 function connectWS() {
@@ -145,9 +138,8 @@ function connectWS() {
 
   ws.onmessage = async (event) => {
     let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (err) {
+    try { data = JSON.parse(event.data); } 
+    catch (err) {
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
       cleaned = cleaned.replace(/^"+|"+$/g, "");
       data = { reply: [cleaned] };
@@ -160,7 +152,7 @@ function connectWS() {
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
-        await delay(500 + Math.random() * 800);
+        await delay(800 + Math.random() * 700); // pausas humanas
         addBubble("ai", b);
       }
 
@@ -273,11 +265,7 @@ registerForm.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// DETECCIÓN DE ACTIVIDAD DEL USUARIO
+// DETECTAR CUANDO EL USUARIO REGRESA
 // -------------------------
-function detectUserReturn() {
-  lastUserInteraction = new Date();
-  awaitingUser = false;
-}
 window.addEventListener("mousemove", detectUserReturn);
 window.addEventListener("keydown", detectUserReturn);
