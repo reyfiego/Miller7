@@ -1,10 +1,12 @@
+// -------------------------
+// SESIÓN
+// -------------------------
 const SESSION_KEY = "miller_session_id";
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
   sessionId = crypto.randomUUID();
   localStorage.setItem(SESSION_KEY, sessionId);
 }
-
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
 
 // -------------------------
@@ -37,44 +39,15 @@ const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// FUNCIONES DE UI
+// VARIABLES CHAT
 // -------------------------
-function openElement(element) {
-  element.classList.add("active");
-  element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) {
-    panelOverlay.classList.add("active");
-  }
-}
-
-function closeElement(element) {
-  element.classList.add("closing");
-  setTimeout(() => {
-    element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) {
-      panelOverlay.classList.remove("active");
-    }
-  }, 300);
-}
+let awaitingUser = false;
+let consecutiveBubbles = 0;
+const MAX_CONSECUTIVE_BUBBLES = 1; // Evita múltiples burbujas automáticas
+let autoMessageTimeout = null;
 
 // -------------------------
-// PANEL LOGIN & REGISTRO
-// -------------------------
-loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
-registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
-closeLogin.addEventListener("click", () => closeElement(loginPanel));
-closeRegister.addEventListener("click", () => closeElement(registerPanel));
-panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
-
-// -------------------------
-// MODAL INFO
-// -------------------------
-infoBtn.addEventListener("click", () => openElement(modal));
-closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
-
-// -------------------------
-// CHAT
+// FUNCIONES UI
 // -------------------------
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
@@ -88,11 +61,81 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-let awaitingUser = false;
-let autoMessageTimeout = null;
-let lastUserInteraction = new Date();
-let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 1;
+function openElement(element) {
+  element.classList.add("active");
+  element.classList.remove("closing");
+  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
+}
+
+function closeElement(element) {
+  element.classList.add("closing");
+  setTimeout(() => {
+    element.classList.remove("active", "closing");
+    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
+  }, 300);
+}
+
+// -------------------------
+// LOGIN & REGISTRO
+// -------------------------
+loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
+registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
+closeLogin.addEventListener("click", () => closeElement(loginPanel));
+closeRegister.addEventListener("click", () => closeElement(registerPanel));
+panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
+
+loginForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const formData = new FormData(loginForm);
+  const email = formData.get("email").trim();
+  const password = formData.get("password").trim();
+  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
+
+  fetch("/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert("Inicio de sesión exitoso");
+      loggedIn = true;
+      localStorage.setItem("miller_logged_in", "true");
+      closeElement(loginPanel);
+    } else alert(data.message || "Error en inicio de sesión");
+  })
+  .catch(() => alert("Error al conectar con el servidor"));
+});
+
+registerForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const formData = new FormData(registerForm);
+  const email = formData.get("email").trim();
+  const password = formData.get("password").trim();
+  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
+
+  fetch("/register", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.success) {
+      alert("Registro exitoso, ya puedes iniciar sesión");
+      closeElement(registerPanel);
+    } else alert(data.message || "Error en registro");
+  })
+  .catch(() => alert("Error al conectar con el servidor"));
+});
+
+// -------------------------
+// MODAL INFO
+// -------------------------
+infoBtn.addEventListener("click", () => openElement(modal));
+closeModal.addEventListener("click", () => closeElement(modal));
+window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -100,42 +143,26 @@ const MAX_CONSECUTIVE_BUBBLES = 1;
 function send(text) {
   addBubble("you", text);
   input.value = "";
-
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
     awaitingUser = true;
     consecutiveBubbles = 0;
-    lastUserInteraction = new Date();
     clearTimeout(autoMessageTimeout);
     startAutoMessageTimer();
-  } else {
-    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-    reconnectWS();
-  }
+  } else addBubble("ai", "❌ No hay conexión con el servidor.");
 }
 
-function sendMillerMessage(text) {
-  addBubble("ai", text);
-  consecutiveBubbles++;
-}
-
-// -------------------------
-// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
-// -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
   autoMessageTimeout = setTimeout(() => {
     if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ auto: true }));
-      }
-      consecutiveBubbles++;
+      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ auto: true }));
     }
-  }, 20000); // 20 segundos sin respuesta
+  }, 15000); // 15s sin respuesta
 }
 
 // -------------------------
-// WEB SOCKET CON RECONEXIÓN
+// WEBSOCKET
 // -------------------------
 let ws;
 function connectWS() {
@@ -146,40 +173,31 @@ function connectWS() {
 
   ws.onmessage = async (event) => {
     let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (err) {
-      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
-      cleaned = cleaned.replace(/^"+|"+$/g, "");
-      data = { reply: [cleaned] };
-    }
+    try { data = JSON.parse(event.data); } 
+    catch { data = { reply: [event.data] }; }
 
     if (data.reply) {
       awaitingUser = false;
-      lastUserInteraction = new Date();
       consecutiveBubbles = 0;
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
         await delay(500 + Math.random() * 800);
         addBubble("ai", b);
+        consecutiveBubbles++;
       }
 
       startAutoMessageTimer();
     }
   };
 
-  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
+  ws.onclose = () => setTimeout(connectWS, 3000);
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
 }
 connectWS();
 
-function reconnectWS() {
-  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-}
-
 // -------------------------
-// SUBMIT FORM
+// FORM SUBMIT
 // -------------------------
 form.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -188,11 +206,9 @@ form.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// RETARDO ENTRE BURBUJAS
+// UTILIDADES
 // -------------------------
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // -------------------------
 // MICROFONO
@@ -222,65 +238,8 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 }
 
 // -------------------------
-// LOGIN
+// DETECTAR ACTIVIDAD USUARIO
 // -------------------------
-loginForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const formData = new FormData(loginForm);
-  const email = formData.get("email").trim();
-  const password = formData.get("password").trim();
-  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
-
-  fetch("/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      alert("Inicio de sesión exitoso");
-      loggedIn = true;
-      localStorage.setItem("miller_logged_in", "true");
-      closeElement(loginPanel);
-    } else alert(data.message || "Error en inicio de sesión");
-  })
-  .catch(() => alert("Error al conectar con el servidor"));
-});
-
-// -------------------------
-// REGISTRO
-// -------------------------
-registerForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const formData = new FormData(registerForm);
-  const email = formData.get("email").trim();
-  const password = formData.get("password").trim();
-  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
-
-  fetch("/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.success) {
-      alert("Registro exitoso, ya puedes iniciar sesión");
-      closeElement(registerPanel);
-    } else alert(data.message || "Error en registro");
-  })
-  .catch(() => alert("Error al conectar con el servidor"));
-});
-
-// -------------------------
-// DETECTAR CUANDO EL USUARIO REGRESA
-// -------------------------
+function detectUserReturn() { awaitingUser = false; consecutiveBubbles = 0; clearTimeout(autoMessageTimeout); }
 window.addEventListener("mousemove", detectUserReturn);
 window.addEventListener("keydown", detectUserReturn);
-
-function detectUserReturn() {
-  lastUserInteraction = new Date();
-  clearTimeout(autoMessageTimeout);
-  startAutoMessageTimer();
-}

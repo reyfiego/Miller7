@@ -23,7 +23,6 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 historiales = {}
-ultimo_auto_msg = {}  # ← Control de último mensaje automático
 
 # -------------------------------
 # CONNECTION MANAGER
@@ -41,7 +40,6 @@ class ConnectionManager:
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
         self.user_last_active.pop(session_id, None)
-        ultimo_auto_msg.pop(session_id, None)
 
     async def send_personal_message(self, message: str, session_id: str):
         websocket = self.active_connections.get(session_id)
@@ -61,61 +59,33 @@ manager = ConnectionManager()
 # FUNCIONES AUXILIARES
 # -------------------------------
 async def enviar_respuesta(session_id: str, reply_text: str):
-    if not reply_text:
-        return
     clean_text = reply_text.replace("<|header_start|>", "").replace("<|header_end|>", "").strip()
     clean_text = clean_text.replace('"', '')
     await manager.send_personal_message(clean_text, session_id)
 
-def es_pregunta_directa(texto: str):
-    try:
-        if "+" in texto or "-" in texto or "*" in texto or "/" in texto:
-            return str(eval(texto))
-    except:
-        pass
-    return None
-
 # -------------------------------
 # MENSAJES AUTOMÁTICOS
 # -------------------------------
-async def generar_mensaje_automatico(session_id: str) -> str | None:
-    # Evitar repetir mensajes automáticos muy seguido
-    last_time = ultimo_auto_msg.get(session_id)
-    if last_time and (datetime.datetime.now() - last_time).total_seconds() < 20:
-        return None
-
+async def generar_mensaje_automatico(session_id: str) -> str:
     history = historiales.get(session_id, [])
-    system_messages = [{"role": "system", "content": SYSTEM_ROLE}] + history
+    system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+    messages_for_groq = system_messages + history
     try:
         response = groq_client.chat.completions.create(
             model=MODEL_ID,
-            messages=system_messages,
+            messages=messages_for_groq,
             max_tokens=150,
             temperature=0.85,
             top_p=0.95
         )
-        msg = response.choices[0].message.content.strip()
-        ultimo_auto_msg[session_id] = datetime.datetime.now()
-        return msg
-    except:
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print("Error generando mensaje automático:", repr(e))
         fallback = [
             "A veces un simple pensamiento puede cambiar cómo nos sentimos…",
             "El silencio también puede ser un buen compañero.",
         ]
-        ultimo_auto_msg[session_id] = datetime.datetime.now()
         return random.choice(fallback)
-
-async def auto_message_loop():
-    while True:
-        await asyncio.sleep(5)
-        idle_users = manager.get_idle_users(timeout_seconds=15)
-        for sid in idle_users:
-            msg = await generar_mensaje_automatico(sid)
-            if msg:
-                await enviar_respuesta(sid, msg)
-                manager.update_activity(sid)
-
-asyncio.create_task(auto_message_loop())
 
 # -------------------------------
 # WEBSOCKET CHAT
@@ -133,13 +103,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if saludo:
         await enviar_respuesta(session_id, saludo)
 
-    async def enviar_mensaje_auto():
-        await asyncio.sleep(20)  # espera 20s de inactividad
-        idle_time = (datetime.datetime.now() - ultima_interaccion).total_seconds()
-        if idle_time >= 20:
-            msg = await generar_mensaje_automatico(session_id)
-            await enviar_respuesta(session_id, msg)
-
     try:
         while True:
             data = await websocket.receive_text()
@@ -148,9 +111,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             manager.update_activity(session_id)
 
             if not user_text:
-                continue  # no enviar nada si está vacío
+                continue
 
             historiales[session_id].append({"role": "user", "content": user_text})
+            history = historiales[session_id]
 
             # Construir mensajes del sistema
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
@@ -162,7 +126,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
                     system_messages.append({"role": "system", "content": f"Inspírate en esta frase para responder: {contenido}"})
 
-            messages_for_groq = system_messages + historiales[session_id]
+            messages_for_groq = system_messages + history
 
             try:
                 response = groq_client.chat.completions.create(
@@ -173,18 +137,36 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     top_p=0.95
                 )
                 reply_text = response.choices[0].message.content.strip()
+
+                # Máximo 2 burbujas por mensaje
+                max_burbujas = 2
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
-                await enviar_respuesta(session_id, reply_text)
+
+                contexto_completo = " ".join([m["content"] for m in historiales[session_id]])
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=contexto_completo,
+                    groq_client=groq_client,
+                    max_burbujas=max_burbujas,
+                    relevancia_minima=0.8
+                )
+
+                # Evitar repeticiones
+                burbujas_previas = set([b["content"] for b in historiales[session_id] if b["role"] == "assistant"])
+                for b in burbujas[:max_burbujas]:
+                    if b not in burbujas_previas:
+                        await enviar_respuesta(session_id, b)
+                        burbujas_previas.add(b)
+                        await asyncio.sleep(random.uniform(0.5, 1.2))
+
             except Exception as e:
                 print("Error en chat:", repr(e))
                 fallback_messages = [
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
+                    "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 await enviar_respuesta(session_id, random.choice(fallback_messages))
-
-            # Lanzar el mensaje automático de retomar conversación
-            asyncio.create_task(enviar_mensaje_auto())
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
