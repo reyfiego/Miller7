@@ -89,6 +89,13 @@ function escapeHtml(str) {
 }
 
 // -------------------------
+// CONTROL DE MENSAJES AUTOMÁTICOS
+// -------------------------
+let lastUserInteraction = new Date();
+let consecutiveAuto = 0;
+const MAX_AUTO = 2; // máximo de mensajes automáticos seguidos
+
+// -------------------------
 // WEBSOCKET
 // -------------------------
 let ws;
@@ -105,13 +112,22 @@ function connectWS() {
     } catch (err) {
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
       cleaned = cleaned.replace(/^"+|"+$/g, "");
-      data = { reply: [cleaned] };
+      data = { reply: [{ content: cleaned }] };
     }
 
     if (data.reply) {
       for (let b of data.reply) {
+        const now = new Date();
+        const idleSeconds = (now - lastUserInteraction) / 1000;
+
+        // Solo mostrar mensajes automáticos si el usuario está inactivo
+        if (b.auto && idleSeconds < 10) continue;
+
         await delay(500 + Math.random() * 800);
-        addBubble("ai", b);
+        addBubble("ai", b.content || b);
+
+        if (b.auto) consecutiveAuto++;
+        if (consecutiveAuto >= MAX_AUTO) break;
       }
     } else if (typeof data === "string") {
       addBubble("ai", data);
@@ -133,6 +149,8 @@ function reconnectWS() {
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  lastUserInteraction = new Date();
+  consecutiveAuto = 0; // reiniciamos contador
 
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
