@@ -19,60 +19,6 @@ const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
-// Modal info
-const infoBtn = document.getElementById("info-btn");
-const modal = document.getElementById("info-modal");
-const closeModal = document.getElementById("close-modal");
-
-// Paneles login & registro
-const loginBtn = document.getElementById("login-btn");
-const registerBtn = document.getElementById("register-btn");
-const loginPanel = document.getElementById("login-panel");
-const registerPanel = document.getElementById("register-panel");
-const closeLogin = document.getElementById("close-login");
-const closeRegister = document.getElementById("close-register");
-const panelOverlay = document.getElementById("panel-overlay");
-
-const loginForm = document.getElementById("login-form");
-const registerForm = document.getElementById("register-form");
-
-// -------------------------
-// FUNCIONES DE UI
-// -------------------------
-function openElement(element) {
-  element.classList.add("active");
-  element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) {
-    panelOverlay.classList.add("active");
-  }
-}
-
-function closeElement(element) {
-  element.classList.add("closing");
-  setTimeout(() => {
-    element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) {
-      panelOverlay.classList.remove("active");
-    }
-  }, 300);
-}
-
-// -------------------------
-// PANEL LOGIN & REGISTRO
-// -------------------------
-loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
-registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
-closeLogin.addEventListener("click", () => closeElement(loginPanel));
-closeRegister.addEventListener("click", () => closeElement(registerPanel));
-panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
-
-// -------------------------
-// MODAL INFO
-// -------------------------
-infoBtn.addEventListener("click", () => openElement(modal));
-closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
-
 // -------------------------
 // CHAT
 // -------------------------
@@ -88,21 +34,55 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
+// -------------------------
+// COLA DE MENSAJES CON FILTRADO
+// -------------------------
+let messageQueue = [];
+let processingQueue = false;
+const MESSAGE_DELAY = 1300; // ms entre burbujas
+let lastMessage = "";
+
+function isRelevant(msg) {
+  msg = msg.trim();
+  if (msg.length < 5) return false;            // demasiado corto
+  if (msg === lastMessage) return false;       // repetitivo
+  return true;
+}
+
+function processQueue() {
+  if (processingQueue || messageQueue.length === 0) return;
+  processingQueue = true;
+  const next = messageQueue.shift();
+  addBubble("ai", next);
+  lastMessage = next;
+  setTimeout(() => {
+    processingQueue = false;
+    processQueue();
+  }, MESSAGE_DELAY + Math.random() * 600); // pequeño extra aleatorio
+}
+
+function queueMessage(text) {
+  if (isRelevant(text)) messageQueue.push(text);
+  processQueue();
+}
+
 function send(text) {
   addBubble("you", text);
   input.value = "";
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
   } else {
-    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
+    queueMessage("❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
 }
 
 // -------------------------
-// WEB SOCKET CON RECONEXIÓN
+// WEB SOCKET
 // -------------------------
 let ws;
+let firstInteraction = true; // Control inicial de intensidad
+
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
@@ -113,20 +93,26 @@ function connectWS() {
     let data;
     try {
       data = JSON.parse(event.data);
-    } catch (err) {
-      console.warn("Error parseando mensaje JSON:", err, "Mensaje crudo:", event.data);
-
+    } catch {
       // Limpiar headers tipo <|header_start|>...
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
-
-      // Quitar comillas sobrantes
       cleaned = cleaned.replace(/^"+|"+$/g, "");
-
       data = { reply: [cleaned] };
     }
 
     if (data.reply) {
-      data.reply.forEach(b => addBubble("ai", b));
+      data.reply.forEach((msg) => {
+        // Control de intensidad inicial
+        if (firstInteraction) {
+          // recortar si es demasiado largo
+          if (msg.length > 120) msg = msg.slice(0, 120) + "...";
+          // espaciar más al inicio
+          setTimeout(() => queueMessage(msg), Math.random() * 800);
+        } else {
+          queueMessage(msg);
+        }
+      });
+      firstInteraction = false;
     }
   };
 
@@ -161,8 +147,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 
   recognition.addEventListener("result", (e) => {
     currentTranscript = e.results[0][0].transcript;
-    const level = Math.min(100, Math.random() * 100);
-    waveBar.style.width = level + "%";
+    waveBar.style.width = Math.min(100, Math.random() * 100) + "%";
   });
 
   recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
