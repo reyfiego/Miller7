@@ -185,6 +185,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not user_text:
                 continue  # no enviar nada si está vacío
 
+            # Responder directamente si es pregunta simple
+            respuesta_directa = es_pregunta_directa(user_text)
+            if respuesta_directa:
+                await enviar_respuesta(session_id, respuesta_directa)
+                historiales[session_id].append({"role": "user", "content": user_text})
+                historiales[session_id].append({"role": "assistant", "content": respuesta_directa})
+                continue
+
             historiales[session_id].append({"role": "user", "content": user_text})
             history = historiales[session_id]
 
