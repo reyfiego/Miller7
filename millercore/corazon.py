@@ -183,6 +183,10 @@ MENSAJES_INICIO = [
     "", "", "", "", ""
 ]
 
+
+# -------------------------------
+# FRASES CONTEXTUALES
+# -------------------------------
 FRASES_CONTEXTUALES = [
     {
         "texto": "A veces vale más actuar que reflexionar.",
@@ -203,6 +207,10 @@ FRASES_CONTEXTUALES = [
         "primera_persona": True
     }
 ]
+
+def contexto_coincide(user_text: str, contexto: str) -> bool:
+    palabras = [c.strip() for c in contexto.split(",")]
+    return any(p.lower() in user_text.lower() for p in palabras)
 # -------------------------------
 # FUNCIONES AUXILIARES
 # -------------------------------
