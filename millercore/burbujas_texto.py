@@ -1,29 +1,22 @@
 import random
 import re
-import os
-from dotenv import load_dotenv
 from groq import Groq
+from dotenv import load_dotenv
+import os
 
-# ==========================
-# CONFIG
-# ==========================
 load_dotenv()
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-
 if not API_KEY:
     raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
 
 groq_client = Groq(api_key=API_KEY)
 
-# ==========================
-# FUNCIONES
-# ==========================
+
 def dividir_burbujas_aleatorio(texto: str) -> list[str]:
     texto = texto.replace("...", "…")
     frases = re.split(r'(?<=[.?!…])\s+', texto)
-    burbujas = []
-    temp = ""
+    burbujas, temp = [], ""
     for frase in frases:
         if random.random() < 0.5 or frase.endswith("?"):
             if temp:
@@ -68,14 +61,13 @@ def enriquecer_burbujas_contextual(
     burbujas: list[str],
     contexto: str | list[str],
     groq_client=groq_client,
-    max_burbujas: int = 4,
-    burbujas_previas: set[str] = None
+    max_burbujas: int = 5
 ) -> list[str]:
     if isinstance(contexto, list):
-        contexto = " ".join(contexto)
+        contexto = " ".join([m.get("content", "") if isinstance(m, dict) else m for m in contexto])
 
     resultado = []
-    frases_recientes = set() if burbujas_previas is None else set(burbujas_previas)
+    frases_recientes = set()
 
     for b in burbujas:
         b = re.sub(r'…{2,}$', '…', b.strip())
@@ -83,6 +75,7 @@ def enriquecer_burbujas_contextual(
             resultado.append(b)
             frases_recientes.add(b)
 
+        # 40% de probabilidad de añadir frase contextual
         if random.random() < 0.4 and not b.endswith("?") and len(resultado) < max_burbujas:
             frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
             if frase_contextual and frase_contextual not in frases_recientes:
