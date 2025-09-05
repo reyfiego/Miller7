@@ -118,19 +118,19 @@ function connectWS() {
       awaitingUser = true; 
       clearTimeout(autoMessageTimeout);
 
-      // ✅ Miller ahora puede enviar hasta 3 burbujas con delay aleatorio
       let bubbleCount = 0;
       for (let b of data.reply) {
-        if (bubbleCount >= 3) break;  
-        let randomDelay = 300 + Math.random() * 900; // 0.3s - 1.2s
-        await delay(randomDelay);
+        if (bubbleCount >= 3) break;          
+        // delay aleatorio 0.5s – 1.5s
+        await delay(500 + Math.random() * 1000);
         addBubble("ai", b);
         bubbleCount++;
       }
 
+      // después de 7s sin respuesta, desbloquea a Miller
       autoMessageTimeout = setTimeout(() => {
         awaitingUser = false;
-      }, 12000); // 12 segundos de inactividad
+      }, 7000);
     } else if (typeof data === "string") {
       addBubble("ai", data);
     }
@@ -200,11 +200,27 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     waveBar.style.width = level + "%";
   });
 
-  recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
+  recognition.addEventListener("end", () => { 
+    micBtn.disabled = false; 
+    waveBar.style.width = "0%"; 
+  });
 
-  micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
-  confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-  cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
+  micBtn.addEventListener("click", () => { 
+    overlay.style.display = "flex"; 
+    micBtn.disabled = true; 
+    recognition.start(); 
+  });
+  confirmBtn.addEventListener("click", () => { 
+    if (currentTranscript.trim()) send(currentTranscript); 
+    overlay.style.display = "none"; 
+    currentTranscript = ""; 
+    waveBar.style.width = "0%"; 
+  });
+  cancelBtn.addEventListener("click", () => { 
+    overlay.style.display = "none"; 
+    currentTranscript = ""; 
+    waveBar.style.width = "0%"; 
+  });
 } else {
   micBtn.disabled = true;
   micBtn.title = "Tu navegador no soporta reconocimiento de voz";
