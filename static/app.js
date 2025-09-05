@@ -109,17 +109,29 @@ function connectWS() {
     }
 
     if (data.reply) {
-      // Filtrar mensajes vacíos y limitar a 3 burbujas
-      const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3);
+      // Combinar mensajes consecutivos similares para evitar repeticiones
+      let lastMsg = "";
+      const bubbles = [];
+      for (let b of data.reply) {
+        if (!b.trim()) continue;
+        if (b !== lastMsg) {
+          bubbles.push(b);
+          lastMsg = b;
+        }
+        if (bubbles.length >= 3) break; // máximo 3 burbujas
+      }
 
       for (let b of bubbles) {
-        await delay(200 + Math.random() * 400); // 200-600ms delay aleatorio
+        // Delay proporcional a la longitud, mínimo 200ms, máximo 600ms
+        const delayMs = Math.min(600, 200 + b.length * 10);
+        await delay(delayMs);
         addBubble("ai", b);
       }
     } else if (typeof data === "string" && data.trim() !== "") {
       addBubble("ai", data);
     }
-  };
+};
+
 
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
