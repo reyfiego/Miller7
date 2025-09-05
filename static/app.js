@@ -104,7 +104,7 @@ function connectWS() {
 
   ws.onopen = () => console.log("Conectado al WebSocket");
 
-  ws.onmessage = async (event) => {
+  ws.onmessage = (event) => {
     let data;
     try {
       data = JSON.parse(event.data);
@@ -115,22 +115,20 @@ function connectWS() {
     }
 
     if (data.reply && !awaitingUser) {
-      awaitingUser = true; // Miller envía un mensaje, bloquea hasta respuesta del usuario
+      awaitingUser = true;
       clearTimeout(autoMessageTimeout);
 
-      // Filtra burbujas vacías y limita a 3
-      const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3);
+      const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3); // máximo 3 burbujas
 
-      for (let b of bubbles) {
-        // Retardo natural entre 0.3 y 0.8 segundos
-        await delay(300 + Math.random() * 500);
-        addBubble("ai", b);
-      }
+      // Cada burbuja tiene su propio delay aleatorio, no bloqueante
+      bubbles.forEach((b, i) => {
+        setTimeout(() => addBubble("ai", b), 200 + Math.random() * 600 * i);
+      });
 
-      // Reinicia temporizador de espera para próximos mensajes automáticos
+      // Reinicia temporizador de espera
       autoMessageTimeout = setTimeout(() => {
         awaitingUser = false;
-      }, 15000); // 15 segundos de inactividad
+      }, 15000);
     } else if (typeof data === "string" && data.trim() !== "") {
       addBubble("ai", data);
     }
