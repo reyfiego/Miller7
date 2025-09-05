@@ -81,31 +81,26 @@ function connectWS() {
   ws.onmessage = async (event) => {
     let data;
     try {
-        data = JSON.parse(event.data);
+      data = JSON.parse(event.data);
     } catch (err) {
-        data = { reply: [event.data] };
+      data = { reply: [event.data] };
     }
 
-    // Normalizamos a lista de objetos {text, omit_delay}
-    let burbujas = [];
+    // Saludo inicial (string simple) sin delay
     if (typeof data.reply === "string") {
-        burbujas.push({ text: data.reply.replace(/(\.\.\.)+/g, "…"), omit_delay: true });
-    } else if (Array.isArray(data.reply)) {
-        for (let b of data.reply) {
-            if (typeof b === "string") {
-                burbujas.push({ text: b.replace(/(\.\.\.)+/g, "…"), omit_delay: false });
-            } else if (b.text) {
-                burbujas.push(b);
-            }
-        }
+      addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
+      return;
     }
 
-    // Mostramos cada burbuja respetando omit_delay
-    for (let b of burbujas) {
-        if (!b.omit_delay) {
-            await new Promise(resolve => setTimeout(resolve, 5000 + Math.random() * 5000));
+    // Array de burbujas -> mostrar con delay (excepto primer mensaje)
+    if (Array.isArray(data.reply)) {
+      for (let i = 0; i < data.reply.length; i++) {
+        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
+        if (i !== 0) {
+          await delay(5000 + Math.random() * 5000); // retardo humano
         }
-        addBubble("ai", b.text);
+        addBubble("ai", msg);
+      }
     }
   };
 
