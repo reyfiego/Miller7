@@ -115,18 +115,23 @@ function connectWS() {
     }
 
     if (data.reply && !awaitingUser) {
-      awaitingUser = true; // Bloquea hasta respuesta del usuario
+      awaitingUser = true; // Miller envía un mensaje, bloquea hasta respuesta del usuario
       clearTimeout(autoMessageTimeout);
 
-      const bubbles = data.reply.slice(0, 3); // máximo 3 burbujas
-      bubbles.forEach((b, i) => {
-        const delayTime = 300 + Math.random() * 400 + i * 250; // retardo variable y natural
-        setTimeout(() => addBubble("ai", b), delayTime);
-      });
+      // Filtra burbujas vacías y limita a 3
+      const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3);
 
-      // Desbloquea a Miller después de 15s de inactividad
-      autoMessageTimeout = setTimeout(() => { awaitingUser = false; }, 15000);
-    } else if (typeof data === "string") {
+      for (let b of bubbles) {
+        // Retardo natural entre 0.3 y 0.8 segundos
+        await delay(300 + Math.random() * 500);
+        addBubble("ai", b);
+      }
+
+      // Reinicia temporizador de espera para próximos mensajes automáticos
+      autoMessageTimeout = setTimeout(() => {
+        awaitingUser = false;
+      }, 15000); // 15 segundos de inactividad
+    } else if (typeof data === "string" && data.trim() !== "") {
       addBubble("ai", data);
     }
   };
