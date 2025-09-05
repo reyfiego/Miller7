@@ -4,7 +4,6 @@ from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 import os, datetime, random, asyncio
 from groq import Groq
-
 from millercore.corazon import SYSTEM_ROLE, get_random_greeting, FRASES_CONTEXTUALES
 from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, contexto_coincide
 
@@ -23,9 +22,6 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# -------------------------------
-# HISTORIAL EN MEMORIA
-# -------------------------------
 historiales = {}
 
 # -------------------------------
@@ -45,11 +41,17 @@ class ConnectionManager:
     async def send_personal_message(self, message: str, session_id: str):
         websocket = self.active_connections.get(session_id)
         if websocket:
-            # Limpiar cualquier header extraño antes de enviar
-            clean_message = message.replace("<|header_start|>", "").replace("<|header_end|>", "").strip()
-            await websocket.send_text(clean_message)
+            await websocket.send_text(message)
 
 manager = ConnectionManager()
+
+# -------------------------------
+# FUNCIÓN PARA LIMPIAR RESPUESTA
+# -------------------------------
+async def enviar_respuesta(session_id: str, reply_text: str):
+    clean_text = reply_text.replace("<|header_start|>", "").replace("<|header_end|>", "").strip()
+    clean_text = clean_text.replace('"', '')
+    await manager.send_personal_message(clean_text, session_id)
 
 # -------------------------------
 # WEBSOCKET CHAT
@@ -65,7 +67,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
-        await manager.send_personal_message(saludo, session_id)
+        await enviar_respuesta(session_id, saludo)
 
     async def mensajes_periodicos():
         while True:
@@ -94,12 +96,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
                     groq_client=groq_client,
-                    max_burbujas=3  # límite de burbujas
+                    max_burbujas=2,
+                    relevancia_minima=0.8
                 )
 
                 for b in burbujas:
-                    await manager.send_personal_message(b, session_id)
-                    await asyncio.sleep(random.uniform(0.5, 1.5))
+                    await enviar_respuesta(session_id, b)
+                    await asyncio.sleep(random.uniform(0.5, 1.2))
 
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
@@ -114,7 +117,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             user_text = data.strip()
             ultima_interaccion = datetime.datetime.now()
             if not user_text:
-                await manager.send_personal_message("Por favor, escribe algo para responderte.", session_id)
+                await enviar_respuesta(session_id, "Por favor, escribe algo para responderte.")
                 continue
 
             historiales[session_id].append({"role": "user", "content": user_text})
@@ -141,27 +144,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Filtro especial para respuestas negativas del usuario
+                # Ajuste de tono amigable
                 if user_text.lower() in ["no", "no gracias", "prefiero no"]:
                     reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
-                # ------------------------
-                # Burbujas contextuales mejoradas
-                # ------------------------
                 contexto_completo = " ".join([m["content"] for m in historiales[session_id]])
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
                     groq_client=groq_client,
-                    max_burbujas=3,
-                    relevancia_minima=0.7  # solo burbujas altamente relevantes
+                    max_burbujas=2,
+                    relevancia_minima=0.8
                 )
 
                 for b in burbujas:
-                    await manager.send_personal_message(b, session_id)
-                    await asyncio.sleep(random.uniform(0.5, 1.5))
+                    await enviar_respuesta(session_id, b)
+                    await asyncio.sleep(random.uniform(0.5, 1.2))
 
             except Exception as e:
                 print("Error en chat:", repr(e))
@@ -170,7 +170,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
-                await manager.send_personal_message(random.choice(fallback_messages), session_id)
+                await enviar_respuesta(session_id, random.choice(fallback_messages))
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
