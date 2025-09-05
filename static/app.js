@@ -19,6 +19,11 @@ const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
+// Modal info
+const infoBtn = document.getElementById("info-btn");
+const modal = document.getElementById("info-modal");
+const closeModal = document.getElementById("close-modal");
+
 // Paneles login & registro
 const loginBtn = document.getElementById("login-btn");
 const registerBtn = document.getElementById("register-btn");
@@ -37,18 +42,14 @@ const registerForm = document.getElementById("register-form");
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) {
-    panelOverlay.classList.add("active");
-  }
+  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
 }
 
 function closeElement(element) {
   element.classList.add("closing");
   setTimeout(() => {
     element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) {
-      panelOverlay.classList.remove("active");
-    }
+    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
   }, 300);
 }
 
@@ -62,12 +63,15 @@ closeRegister.addEventListener("click", () => closeElement(registerPanel));
 panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
 
 // -------------------------
+// MODAL INFO
+// -------------------------
+infoBtn.addEventListener("click", () => openElement(modal));
+closeModal.addEventListener("click", () => closeElement(modal));
+window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
+
+// -------------------------
 // CHAT
 // -------------------------
-let waitingUserResponse = false; // controla si Miller debe esperar respuesta
-let messageQueue = []; // cola de mensajes para mostrar con delay
-let lastUserMessage = ""; // último mensaje del usuario
-
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -80,28 +84,39 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-// Mostrar mensajes en cola con delay
-function processQueue() {
-  if (messageQueue.length === 0) return;
-  const msg = messageQueue.shift();
-  addBubble("ai", msg);
-  if (messageQueue.length > 0) {
-    setTimeout(processQueue, 1200); // delay entre burbujas
-  } else {
-    waitingUserResponse = msg.endsWith("?"); // si termina en pregunta, espera respuesta
-  }
-}
+// -------------------------
+// COLA DE MENSAJES Y LÓGICA DE RESPUESTA
+// -------------------------
+let messageQueue = [];
+let processingQueue = false;
+let waitingUserResponse = true; // Al inicio espera interacción del usuario
+let lastUserMessage = "";
 
 function queueMessages(messages) {
-  messageQueue.push(...messages);
-  if (messageQueue.length === messages.length) processQueue();
+  messages.forEach(m => messageQueue.push(m));
+  if (!processingQueue) processQueue();
 }
 
+async function processQueue() {
+  processingQueue = true;
+  while (messageQueue.length > 0) {
+    const msg = messageQueue.shift();
+    addBubble("ai", msg);
+    // Delay entre burbujas
+    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
+  }
+  processingQueue = false;
+  waitingUserResponse = true; // Después de vaciar la cola, espera respuesta del usuario
+}
+
+// -------------------------
+// ENVÍO DE MENSAJE
+// -------------------------
 function send(text) {
   addBubble("you", text);
-  input.value = "";
   lastUserMessage = text;
-  waitingUserResponse = false;
+  input.value = "";
+  waitingUserResponse = false; // Cuando el usuario envía algo, Miller puede responder
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
   } else {
@@ -109,6 +124,12 @@ function send(text) {
     reconnectWS();
   }
 }
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (text) send(text);
+});
 
 // -------------------------
 // WEB SOCKET CON RECONEXIÓN
@@ -121,24 +142,23 @@ function connectWS() {
   ws.onopen = () => console.log("Conectado al WebSocket");
 
   ws.onmessage = (event) => {
-    let data;
+    let messages = [];
+
+    // Intentar parsear JSON
     try {
-      data = JSON.parse(event.data);
-    } catch (err) {
-      console.warn("Error parseando mensaje JSON:", err, "Mensaje crudo:", event.data);
-
-      // Limpiar headers tipo <|header_start|>...
-      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
-
-      // Quitar comillas sobrantes
-      cleaned = cleaned.replace(/^"+|"+$/g, "");
-
-      data = { reply: [cleaned] };
+      const data = JSON.parse(event.data);
+      if (data.reply) messages = data.reply;
+    } catch {
+      // Texto plano
+      messages = [event.data.trim()];
     }
 
-    // Solo procesa si no está esperando respuesta del usuario
-    if (!waitingUserResponse && data.reply) {
-      queueMessages(data.reply);
+    // Filtrar mensajes vacíos o solo puntos suspensivos
+    messages = messages.filter(m => m && m !== "…");
+
+    // Solo procesar si el usuario ya respondió
+    if (!waitingUserResponse) {
+      queueMessages(messages);
     }
   };
 
@@ -150,15 +170,6 @@ connectWS();
 function reconnectWS() {
   if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
 }
-
-// -------------------------
-// ENVÍO DE MENSAJE
-// -------------------------
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) send(text);
-});
 
 // -------------------------
 // MICROFONO
