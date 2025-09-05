@@ -43,6 +43,7 @@ class ConnectionManager:
         self.last_bubble_time[session_id] = datetime.datetime.min
         self.consecutive_bubbles[session_id] = 0
         self.silence_mode[session_id] = False
+        print(f"Conectado: {session_id}")
 
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
@@ -50,6 +51,7 @@ class ConnectionManager:
         self.last_bubble_time.pop(session_id, None)
         self.consecutive_bubbles.pop(session_id, None)
         self.silence_mode.pop(session_id, None)
+        print(f"Desconectado: {session_id}")
 
     async def send_personal_message(self, message: str, session_id: str):
         websocket = self.active_connections.get(session_id)
@@ -57,27 +59,32 @@ class ConnectionManager:
             await websocket.send_text(message)
             self.last_bubble_time[session_id] = datetime.datetime.now()
             self.consecutive_bubbles[session_id] += 1
+            print(f"Mensaje enviado a {session_id}: {message[:50]}...")
 
     def update_activity(self, session_id: str):
         self.user_last_active[session_id] = datetime.datetime.now()
         self.consecutive_bubbles[session_id] = 0
+        if self.silence_mode.get(session_id, False):
+            print(f"Modo silencio desactivado para {session_id} por actividad del usuario")
         self.silence_mode[session_id] = False
 
     def set_silence_mode(self, session_id: str, value: bool):
         self.silence_mode[session_id] = value
+        print(f"Modo silencio {'activado' if value else 'desactivado'} para {session_id}")
 
     def get_idle_users(self, timeout_seconds: int):
         now = datetime.datetime.now()
-        return [
+        idle = [
             sid for sid, ts in self.user_last_active.items()
             if (now - ts).total_seconds() > timeout_seconds and not self.silence_mode.get(sid, False)
         ]
+        if idle:
+            print(f"Usuarios inactivos sin modo silencio: {idle}")
+        return idle
 
 manager = ConnectionManager()
 
 async def generar_mensaje_automatico(session_id: str) -> str:
-    # Implementa aquí la generación de mensaje automático con groq_client
-    # Ejemplo simplificado:
     history = historiales.get(session_id, [])
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
     messages_for_groq = system_messages + history
@@ -111,7 +118,6 @@ async def auto_message_loop():
             msg = await generar_mensaje_automatico(sid)
             await manager.send_personal_message(msg, sid)
 
-# Iniciar el loop de mensajes automáticos al arrancar la app
 asyncio.create_task(auto_message_loop())
 
 @app.websocket("/ws/chat/{session_id}")
@@ -128,7 +134,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     try:
         while True:
             data = await websocket.receive_text()
-            # Intentar parsear JSON para detectar modo silencio
             try:
                 parsed = json.loads(data)
                 if isinstance(parsed, dict) and parsed.get("silence") is True:
@@ -196,4 +201,3 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except Exception as e:
         print("Error general en websocket:", repr(e))
         manager.disconnect(session_id)
-
