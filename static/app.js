@@ -90,6 +90,8 @@ function escapeHtml(str) {
 
 let awaitingUser = false;
 let autoMessageTimeout = null;
+let lastUserMessageTime = Date.now();
+let comebackSent = false;
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -99,31 +101,47 @@ function send(text) {
   input.value = "";
   
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text }));
-    awaitingUser = true; // Miller espera la respuesta del usuario
+    ws.send(JSON.stringify({ message: text, context: "" }));
+    awaitingUser = true;
     clearTimeout(autoMessageTimeout);
     startAutoMessageTimer();
+    lastUserMessageTime = Date.now();
+    comebackSent = false;
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
 }
 
+// -------------------------
+// MENSAJE DE MILLER (IA)
+// -------------------------
 function sendMillerMessage(text) {
   addBubble("ai", text);
 }
 
 // -------------------------
-// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
+// DETECCIÓN DE AUSENCIA Y REGRESO
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
   autoMessageTimeout = setTimeout(() => {
-    if (awaitingUser) {
-      sendMillerMessage("¿Sigues ahí? Si quieres, puedo escucharte cuando estés listo.");
-      startAutoMessageTimer();
+    const now = Date.now();
+    if (awaitingUser && now - lastUserMessageTime > 15000) {
+      // Enviar al servidor para que Miller genere un mensaje natural
+      ws.send(JSON.stringify({ message: "", context: "silence" }));
     }
-  }, 12000); // 12 segundos sin respuesta
+  }, 15000);
+}
+
+function detectUserReturn() {
+  const now = Date.now();
+  if (now - lastUserMessageTime > 15000 && !comebackSent) {
+    ws.send(JSON.stringify({ message: "", context: "comeback" }));
+    comebackSent = true;
+  }
+  lastUserMessageTime = Date.now();
+  startAutoMessageTimer();
 }
 
 // -------------------------
@@ -147,11 +165,11 @@ function connectWS() {
     }
 
     if (data.reply) {
-      awaitingUser = false; // Espera turno del usuario
+      awaitingUser = false;
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
-        await delay(500 + Math.random() * 800); // Delay natural entre burbujas
+        await delay(500 + Math.random() * 800);
         addBubble("ai", b);
       }
 
@@ -262,3 +280,9 @@ registerForm.addEventListener("submit", (e) => {
   })
   .catch(() => alert("Error al conectar con el servidor"));
 });
+
+// -------------------------
+// DETECTAR CUANDO EL USUARIO REGRESA
+// -------------------------
+window.addEventListener("mousemove", detectUserReturn);
+window.addEventListener("keydown", detectUserReturn);
