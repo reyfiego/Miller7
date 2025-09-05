@@ -66,7 +66,7 @@ No uses más de 20 palabras.
             model=MODEL_ID,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=50,
-            temperature=0.8
+            temperature=0.9
         )
         return respuesta.choices[0].message.content.strip()
     except Exception as e:

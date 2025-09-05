@@ -93,7 +93,7 @@ async def generar_mensaje_automatico(session_id: str) -> str:
             model=MODEL_ID,
             messages=messages_for_groq,
             max_tokens=150,
-            temperature=0.85,
+            temperature=0.9,
             top_p=0.95
         )
         return response.choices[0].message.content.strip()
@@ -166,7 +166,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     model=MODEL_ID,
                     messages=messages_for_groq,
                     max_tokens=250,
-                    temperature=0.85,
+                    temperature=0.9,
                     top_p=0.95
                 )
                 reply_text = response.choices[0].message.content.strip()

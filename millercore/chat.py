@@ -54,7 +54,7 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                         model=MODEL_ID,
                         messages=messages_for_groq,
                         max_tokens=150,
-                        temperature=0.85,
+                        temperature=0.9,
                         top_p=0.95,
                         frequency_penalty=0.8,
                         presence_penalty=0.9
@@ -105,7 +105,7 @@ async def websocket_handler(websocket: WebSocket, session_id: str):
                     model=MODEL_ID,
                     messages=messages_for_groq,
                     max_tokens=250,
-                    temperature=0.85,
+                    temperature=0.9,
                     top_p=0.95,
                     frequency_penalty=0.8,
                     presence_penalty=0.9
