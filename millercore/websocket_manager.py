@@ -23,12 +23,10 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# ==========================
-# HISTORIALES Y BURBUJAS
-# ==========================
+# Historial de conversaciones
 historiales = {}
+# Burbuja enviadas previas para evitar repetición
 burbujas_enviadas = {}
-esperando_respuesta = {}
 
 # ==========================
 # MANAGER DE CONEXIONES
@@ -48,7 +46,6 @@ class ConnectionManager:
         self.consecutive_bubbles[session_id] = 0
         if session_id not in burbujas_enviadas:
             burbujas_enviadas[session_id] = set()
-        esperando_respuesta[session_id] = False
         print(f"Conectado: {session_id}")
 
     def disconnect(self, session_id: str):
@@ -57,13 +54,11 @@ class ConnectionManager:
         self.last_bubble_time.pop(session_id, None)
         self.consecutive_bubbles.pop(session_id, None)
         burbujas_enviadas.pop(session_id, None)
-        esperando_respuesta.pop(session_id, None)
         print(f"Desconectado: {session_id}")
 
     def update_activity(self, session_id: str):
         self.user_last_active[session_id] = datetime.datetime.now()
         self.consecutive_bubbles[session_id] = 0
-        esperando_respuesta[session_id] = True
 
 manager = ConnectionManager()
 
@@ -100,13 +95,10 @@ async def auto_message_loop():
         now = datetime.datetime.now()
         for sid in list(manager.active_connections.keys()):
             idle_time = (now - manager.user_last_active.get(sid, now)).total_seconds()
-            if idle_time < 300:  # 5 minutos de inactividad
+            if idle_time < 300:
                 continue
             if manager.consecutive_bubbles.get(sid, 0) >= 4:
                 continue
-            if esperando_respuesta.get(sid, False):
-                continue  # no enviar mientras el usuario está respondiendo
-
             last_time = manager.last_bubble_time.get(sid, datetime.datetime.min)
             if (now - last_time).total_seconds() < 15:
                 continue
@@ -124,7 +116,6 @@ async def auto_message_loop():
                 manager.last_bubble_time[sid] = datetime.datetime.now()
                 manager.consecutive_bubbles[sid] += len(burbujas)
                 burbujas_enviadas[sid].update(burbujas)
-                esperando_respuesta[sid] = False
 
             await asyncio.sleep(random.uniform(5, 10))
 
@@ -143,6 +134,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     saludo = get_random_greeting()
     if saludo:
         await websocket.send_text(json.dumps({"reply": saludo}))
+        burbujas_enviadas[session_id].add(saludo)
 
     try:
         while True:
@@ -160,8 +152,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             historiales[session_id].append({"role": "user", "content": user_text})
 
+            # Generar respuesta ajustada
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            # Añadir frases contextuales
             for frase in FRASES_CONTEXTUALES:
                 contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
                 if contexto_coincide(user_text, contexto_lista) and random.random() < 0.1:
@@ -181,24 +173,26 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     top_p=0.95
                 )
                 reply_text = response.choices[0].message.content.strip()
-                historiales[session_id].append({"role": "assistant", "content": reply_text})
 
+                # Evitar repetición
+                if reply_text in burbujas_enviadas.get(session_id, set()):
+                    continue
+
+                historiales[session_id].append({"role": "assistant", "content": reply_text})
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=historiales[session_id],
                     max_burbujas=4
                 )
 
-                # Enviar burbujas con delay aleatorio
+                # Enviar burbujas con delay humano
                 for i, b in enumerate(burbujas):
                     if i != 0:
-                        await asyncio.sleep(random.uniform(2, 10))
+                        await asyncio.sleep(random.uniform(0, 10))
                     await websocket.send_text(json.dumps({"reply": [b]}))
+                    burbujas_enviadas[session_id].add(b)
                     manager.last_bubble_time[session_id] = datetime.datetime.now()
                     manager.consecutive_bubbles[session_id] += 1
-                    burbujas_enviadas[session_id].add(b)
-
-                esperando_respuesta[session_id] = False
 
             except Exception as e:
                 print("Error en chat:", repr(e))
@@ -208,8 +202,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 fallback = random.choice(fallback_messages)
-                await websocket.send_text(json.dumps({"reply": [fallback]}))
-                esperando_respuesta[session_id] = False
+                if fallback not in burbujas_enviadas.get(session_id, set()):
+                    await websocket.send_text(json.dumps({"reply": [fallback]}))
+                    burbujas_enviadas[session_id].add(fallback)
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)

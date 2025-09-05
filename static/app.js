@@ -31,37 +31,21 @@ const panelOverlay = document.getElementById("panel-overlay");
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
-// -------------------------
-// FUNCIONES UTILES
-// -------------------------
-function addBubble(sender, text) {
-  const bubble = document.createElement("div");
-  bubble.className = `bubble ${sender}`;
-  bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
-  chatEl.appendChild(bubble);
-  chatEl.scrollTop = chatEl.scrollHeight;
-}
-
-function escapeHtml(str) {
-  return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
-}
-
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-// -------------------------
-// MODALES LOGIN / INFO
-// -------------------------
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
+  if (element === loginPanel || element === registerPanel) {
+    panelOverlay.classList.add("active");
+  }
 }
 
 function closeElement(element) {
   element.classList.add("closing");
   setTimeout(() => {
     element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
+    if (element === loginPanel || element === registerPanel) {
+      panelOverlay.classList.remove("active");
+    }
   }, 300);
 }
 
@@ -74,6 +58,81 @@ panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeEl
 infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
 window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
+
+function addBubble(sender, text) {
+  const bubble = document.createElement("div");
+  bubble.className = `bubble ${sender}`;
+  bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
+  chatEl.appendChild(bubble);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function escapeHtml(str) {
+  return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
+}
+
+let ws;
+let burbujasMostradas = new Set();
+
+function connectWS() {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
+
+  ws.onopen = () => console.log("Conectado al WebSocket");
+
+  ws.onmessage = async (event) => {
+    let data;
+    try { data = JSON.parse(event.data); } 
+    catch { data = { reply: [event.data] }; }
+
+    if (typeof data.reply === "string") {
+      if (!burbujasMostradas.has(data.reply)) {
+        addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
+        burbujasMostradas.add(data.reply);
+      }
+      return;
+    }
+
+    if (Array.isArray(data.reply)) {
+      for (let i = 0; i < data.reply.length; i++) {
+        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
+        if (burbujasMostradas.has(msg)) continue;
+        if (i !== 0) await delay(Math.random() * 10000); // delay random 0-10s
+        addBubble("ai", msg);
+        burbujasMostradas.add(msg);
+      }
+    }
+  };
+
+  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
+  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
+}
+connectWS();
+
+function reconnectWS() {
+  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
+
+function send(text) {
+  addBubble("you", text);
+  input.value = "";
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: text }));
+  } else {
+    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
+    reconnectWS();
+  }
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (text) send(text);
+});
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // -------------------------
 // MICROFONO
@@ -103,56 +162,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 }
 
 // -------------------------
-// WEBSOCKET
-// -------------------------
-let ws;
-function connectWS() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
-
-  ws.onopen = () => console.log("Conectado al WebSocket");
-
-  ws.onmessage = async (event) => {
-    let data;
-    try { data = JSON.parse(event.data); } 
-    catch { data = { reply: [event.data] }; }
-
-    // Saludo inicial sin delay
-    if (typeof data.reply === "string") {
-      addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
-      return;
-    }
-
-    // Array de burbujas con delay aleatorio
-    if (Array.isArray(data.reply)) {
-      for (let i = 0; i < data.reply.length; i++) {
-        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        if (i !== 0) await delay(2000 + Math.random() * 8000); // 2-10s
-        addBubble("ai", msg);
-      }
-    }
-  };
-
-  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
-  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
-}
-connectWS();
-
-function send(text) {
-  addBubble("you", text);
-  input.value = "";
-  if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ message: text }));
-  else addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-}
-
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) send(text);
-});
-
-// -------------------------
-// LOGIN / REGISTRO
+// LOGIN
 // -------------------------
 loginForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -178,6 +188,9 @@ loginForm.addEventListener("submit", (e) => {
   .catch(() => alert("Error al conectar con el servidor"));
 });
 
+// -------------------------
+// REGISTRO
+// -------------------------
 registerForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const formData = new FormData(registerForm);
