@@ -92,7 +92,14 @@ let awaitingUser = false;
 let autoMessageTimeout = null;
 let lastUserInteraction = new Date();
 let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 3;
+const MAX_CONSECUTIVE_BUBBLES = 2;
+
+// -------------------------
+// NUEVO: MODO SILENCIO
+// -------------------------
+let silenceMode = false;
+const SILENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutos sin respuesta
+let silenceTimer = null;
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -100,42 +107,66 @@ const MAX_CONSECUTIVE_BUBBLES = 3;
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  
+
+  awaitingUser = true;
+  consecutiveBubbles = 0;
+  lastUserInteraction = new Date();
+  silenceMode = false;
+  clearTimeout(autoMessageTimeout);
+  clearTimeout(silenceTimer);
+  startSilenceTimer();
+
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
-    awaitingUser = true;
-    lastUserInteraction = new Date();
-    consecutiveBubbles = 0; // reset al enviar mensaje del usuario
-    clearTimeout(autoMessageTimeout);
-    startAutoMessageTimer();
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
   }
-}
 
-function sendMillerMessage(text) {
-  addBubble("ai", text);
-  consecutiveBubbles++;
+  startAutoMessageTimer();
 }
 
 // -------------------------
-// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
+// TIMER DE MODO SILENCIO
+// -------------------------
+function startSilenceTimer() {
+  clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    silenceMode = true;
+    console.log("Modo silencio activado: Miller no enviará más mensajes automáticos hasta que el usuario escriba.");
+  }, SILENCE_TIMEOUT);
+}
+
+// -------------------------
+// MENSAJES AUTOMÁTICOS
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(async () => {
-    if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ auto: true }));
-      }
-      startAutoMessageTimer();
+  autoMessageTimeout = setTimeout(() => {
+    if (!awaitingUser) return;
+    if (consecutiveBubbles >= MAX_CONSECUTIVE_BUBBLES) return;
+    if (silenceMode) return;
+
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ auto: true }));
+      consecutiveBubbles++;
     }
-  }, 15000); // 15 segundos de inactividad
+
+    if (consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) startAutoMessageTimer();
+  }, 15000); // 15 segundos
 }
 
+function detectUserReturn() {
+  lastUserInteraction = new Date();
+  silenceMode = false;
+  clearTimeout(silenceTimer);
+  startSilenceTimer();
+}
+window.addEventListener("mousemove", detectUserReturn);
+window.addEventListener("keydown", detectUserReturn);
+
 // -------------------------
-// WEB SOCKET CON RECONEXIÓN
+// WEBSOCKET
 // -------------------------
 let ws;
 function connectWS() {
@@ -161,9 +192,8 @@ function connectWS() {
       clearTimeout(autoMessageTimeout);
 
       for (let b of data.reply) {
-        if (consecutiveBubbles >= MAX_CONSECUTIVE_BUBBLES) break;
         await delay(500 + Math.random() * 800);
-        sendMillerMessage(b);
+        addBubble("ai", b);
       }
 
       startAutoMessageTimer();
@@ -180,7 +210,7 @@ function reconnectWS() {
 }
 
 // -------------------------
-// SUBMIT FORM
+// FORMULARIO
 // -------------------------
 form.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -274,8 +304,4 @@ registerForm.addEventListener("submit", (e) => {
   .catch(() => alert("Error al conectar con el servidor"));
 });
 
-// -------------------------
-// DETECTAR CUANDO EL USUARIO REGRESA
-// -------------------------
-window.addEventListener("mousemove", () => lastUserInteraction = new Date());
-window.addEventListener("keydown", () => lastUserInteraction = new Date());
+
