@@ -1,12 +1,10 @@
-// -------------------------
-// SESIÓN
-// -------------------------
 const SESSION_KEY = "miller_session_id";
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
   sessionId = crypto.randomUUID();
   localStorage.setItem(SESSION_KEY, sessionId);
 }
+
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
 
 // -------------------------
@@ -39,15 +37,44 @@ const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// VARIABLES CHAT
+// FUNCIONES DE UI
 // -------------------------
-let awaitingUser = false;
-let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 1; // Evita múltiples burbujas automáticas
-let autoMessageTimeout = null;
+function openElement(element) {
+  element.classList.add("active");
+  element.classList.remove("closing");
+  if (element === loginPanel || element === registerPanel) {
+    panelOverlay.classList.add("active");
+  }
+}
+
+function closeElement(element) {
+  element.classList.add("closing");
+  setTimeout(() => {
+    element.classList.remove("active", "closing");
+    if (element === loginPanel || element === registerPanel) {
+      panelOverlay.classList.remove("active");
+    }
+  }, 300);
+}
 
 // -------------------------
-// FUNCIONES UI
+// PANEL LOGIN & REGISTRO
+// -------------------------
+loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
+registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
+closeLogin.addEventListener("click", () => closeElement(loginPanel));
+closeRegister.addEventListener("click", () => closeElement(registerPanel));
+panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
+
+// -------------------------
+// MODAL INFO
+// -------------------------
+infoBtn.addEventListener("click", () => openElement(modal));
+closeModal.addEventListener("click", () => closeElement(modal));
+window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
+
+// -------------------------
+// CHAT
 // -------------------------
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
@@ -61,29 +88,138 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-function openElement(element) {
-  element.classList.add("active");
-  element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
+let awaitingUser = false;
+let autoMessageTimeout = null;
+let lastUserInteraction = new Date();
+let consecutiveBubbles = 0;
+const MAX_CONSECUTIVE_BUBBLES = 1; // Solo 1 burbuja automática
+
+// -------------------------
+// ENVÍO DE MENSAJE
+// -------------------------
+function send(text) {
+  addBubble("you", text);
+  input.value = "";
+  
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ message: text }));
+    awaitingUser = true;
+    lastUserInteraction = new Date();
+    clearTimeout(autoMessageTimeout);
+    startAutoMessageTimer();
+  } else {
+    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
+    reconnectWS();
+  }
 }
 
-function closeElement(element) {
-  element.classList.add("closing");
-  setTimeout(() => {
-    element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
-  }, 300);
+// -------------------------
+// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
+// -------------------------
+function startAutoMessageTimer() {
+  clearTimeout(autoMessageTimeout);
+  autoMessageTimeout = setTimeout(() => {
+    const now = new Date();
+    const diff = (now - lastUserInteraction) / 1000;
+    if (awaitingUser && diff >= 15 && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ auto: true }));
+        consecutiveBubbles++;
+      }
+    }
+  }, 15000); // 15s sin respuesta
+}
+
+// -------------------------
+// WEB SOCKET CON RECONEXIÓN
+// -------------------------
+let ws;
+function connectWS() {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
+
+  ws.onopen = () => console.log("Conectado al WebSocket");
+
+  ws.onmessage = async (event) => {
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch {
+      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
+      cleaned = cleaned.replace(/^"+|"+$/g, "");
+      data = { reply: [cleaned] };
+    }
+
+    if (data.reply) {
+      awaitingUser = false;
+      lastUserInteraction = new Date();
+      consecutiveBubbles = 0;
+      clearTimeout(autoMessageTimeout);
+
+      for (let b of data.reply) {
+        await delay(500 + Math.random() * 800);
+        addBubble("ai", b);
+      }
+
+      startAutoMessageTimer();
+    }
+  };
+
+  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
+  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
+}
+connectWS();
+
+function reconnectWS() {
+  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
+
+// -------------------------
+// SUBMIT FORM
+// -------------------------
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (text) send(text);
+});
+
+// -------------------------
+// RETARDO ENTRE BURBUJAS
+// -------------------------
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// -------------------------
+// MICROFONO
+// -------------------------
+let recognition;
+let currentTranscript = "";
+if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = "es-ES";
+  recognition.interimResults = true;
+
+  recognition.addEventListener("result", (e) => {
+    currentTranscript = e.results[0][0].transcript;
+    const level = Math.min(100, Math.random() * 100);
+    waveBar.style.width = level + "%";
+  });
+
+  recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
+
+  micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
+  confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
+  cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
+} else {
+  micBtn.disabled = true;
+  micBtn.title = "Tu navegador no soporta reconocimiento de voz";
 }
 
 // -------------------------
 // LOGIN & REGISTRO
 // -------------------------
-loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
-registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
-closeLogin.addEventListener("click", () => closeElement(loginPanel));
-closeRegister.addEventListener("click", () => closeElement(registerPanel));
-panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
-
 loginForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const formData = new FormData(loginForm);
@@ -131,115 +267,11 @@ registerForm.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// MODAL INFO
+// DETECTAR CUANDO EL USUARIO REGRESA
 // -------------------------
-infoBtn.addEventListener("click", () => openElement(modal));
-closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
-
-// -------------------------
-// ENVÍO DE MENSAJE
-// -------------------------
-function send(text) {
-  addBubble("you", text);
-  input.value = "";
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text }));
-    awaitingUser = true;
-    consecutiveBubbles = 0;
-    clearTimeout(autoMessageTimeout);
-    startAutoMessageTimer();
-  } else addBubble("ai", "❌ No hay conexión con el servidor.");
-}
-
-function startAutoMessageTimer() {
-  clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(() => {
-    if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ auto: true }));
-    }
-  }, 15000); // 15s sin respuesta
-}
-
-// -------------------------
-// WEBSOCKET
-// -------------------------
-let ws;
-function connectWS() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
-
-  ws.onopen = () => console.log("Conectado al WebSocket");
-
-  ws.onmessage = async (event) => {
-    let data;
-    try { data = JSON.parse(event.data); } 
-    catch { data = { reply: [event.data] }; }
-
-    if (data.reply) {
-      awaitingUser = false;
-      consecutiveBubbles = 0;
-      clearTimeout(autoMessageTimeout);
-
-      for (let b of data.reply) {
-        await delay(500 + Math.random() * 800);
-        addBubble("ai", b);
-        consecutiveBubbles++;
-      }
-
-      startAutoMessageTimer();
-    }
-  };
-
-  ws.onclose = () => setTimeout(connectWS, 3000);
-  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
-}
-connectWS();
-
-// -------------------------
-// FORM SUBMIT
-// -------------------------
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) send(text);
-});
-
-// -------------------------
-// UTILIDADES
-// -------------------------
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-// -------------------------
-// MICROFONO
-// -------------------------
-let recognition;
-let currentTranscript = "";
-if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SpeechRecognition();
-  recognition.lang = "es-ES";
-  recognition.interimResults = true;
-
-  recognition.addEventListener("result", (e) => {
-    currentTranscript = e.results[0][0].transcript;
-    const level = Math.min(100, Math.random() * 100);
-    waveBar.style.width = level + "%";
-  });
-
-  recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
-
-  micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
-  confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-  cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-} else {
-  micBtn.disabled = true;
-  micBtn.title = "Tu navegador no soporta reconocimiento de voz";
-}
-
-// -------------------------
-// DETECTAR ACTIVIDAD USUARIO
-// -------------------------
-function detectUserReturn() { awaitingUser = false; consecutiveBubbles = 0; clearTimeout(autoMessageTimeout); }
 window.addEventListener("mousemove", detectUserReturn);
 window.addEventListener("keydown", detectUserReturn);
+
+function detectUserReturn() {
+  lastUserInteraction = new Date();
+}
