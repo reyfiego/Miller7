@@ -117,37 +117,78 @@ asyncio.create_task(auto_message_loop())
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
+    ultima_interaccion = datetime.datetime.now()
 
     if session_id not in historiales:
         historiales[session_id] = []
 
-    # Saludo inicial
+    # Saludo inicial opcional
     saludo = get_random_greeting()
     if saludo:
         await enviar_respuesta(session_id, saludo)
+
+    async def mensajes_periodicos():
+        while True:
+            await asyncio.sleep(random.randint(30, 90))
+            tiempo_inactivo = (datetime.datetime.now() - ultima_interaccion).seconds
+            if tiempo_inactivo < 60:  # solo si hubo inactividad prolongada
+                continue
+
+            history = historiales.get(session_id, [])
+            if not history:
+                continue
+
+            system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
+            messages_for_groq = system_messages + history
+
+            try:
+                response = groq_client.chat.completions.create(
+                    model=MODEL_ID,
+                    messages=messages_for_groq,
+                    max_tokens=150,
+                    temperature=0.85,
+                    top_p=0.95
+                )
+                reply_text = response.choices[0].message.content.strip()
+
+                contexto_completo = " ".join([m["content"] for m in history])
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=contexto_completo,
+                    groq_client=groq_client,
+                    max_burbujas=2,  # solo máximo 2 burbujas por inactividad
+                    relevancia_minima=0.8
+                )
+
+                burbujas_previas = set([b["content"] for b in historiales[session_id] if b["role"] == "assistant"])
+                for b in burbujas[:2]:
+                    if b not in burbujas_previas:
+                        await enviar_respuesta(session_id, b)
+                        burbujas_previas.add(b)
+                        await asyncio.sleep(random.uniform(0.5, 1.2))
+
+                historiales[session_id].append({"role": "assistant", "content": reply_text})
+
+            except Exception as e:
+                print("Error en mensaje automático:", repr(e))
+
+    task = asyncio.create_task(mensajes_periodicos())
 
     try:
         while True:
             data = await websocket.receive_text()
             user_text = data.strip()
+            ultima_interaccion = datetime.datetime.now()
             manager.update_activity(session_id)
 
             if not user_text:
                 await enviar_respuesta(session_id, "Por favor, escribe algo para responderte.")
                 continue
 
-            # Revisar preguntas directas antes de mandar a la IA
-            respuesta_directa = es_pregunta_directa(user_text)
-            if respuesta_directa:
-                await enviar_respuesta(session_id, respuesta_directa)
-                historiales[session_id].append({"role": "user", "content": user_text})
-                historiales[session_id].append({"role": "assistant", "content": respuesta_directa})
-                continue
-
             historiales[session_id].append({"role": "user", "content": user_text})
             history = historiales[session_id]
 
-            # Construir mensajes del sistema con FRASES_CONTEXTUALES
+            # Construir mensajes del sistema
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             for frase in FRASES_CONTEXTUALES:
                 contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
@@ -168,11 +209,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     top_p=0.95
                 )
                 reply_text = response.choices[0].message.content.strip()
+
+                # Ajuste de burbujas: por defecto 1, solo más si inactivo
+                max_burbujas = 1
+
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
-                # Generar burbujas
                 contexto_completo = " ".join([m["content"] for m in historiales[session_id]])
-                max_burbujas = 1 if len(user_text.split()) <= 3 else 2
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
@@ -199,6 +242,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
+        task.cancel()
     except Exception as e:
         print("Error general en websocket:", repr(e))
         manager.disconnect(session_id)
+        task.cancel()
+
