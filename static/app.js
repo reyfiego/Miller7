@@ -254,4 +254,5 @@ registerForm.addEventListener("submit", (e) => {
       closeElement(registerPanel);
     } else alert(data.message || "Error en registro");
   })
-  .catch(() => alert
+  .catch(() => alert("Error al conectar con el servidor"));
+});
