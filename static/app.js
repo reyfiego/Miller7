@@ -88,67 +88,19 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-// -------------------------
-// VARIABLES DE CONTROL
-// -------------------------
-let ws;
 let awaitingUser = false;
 let autoMessageTimeout = null;
-let welcomeSent = false;
 
 // -------------------------
-// CONEXIÓN WEBSOCKET
-// -------------------------
-function connectWS() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
-
-  ws.onopen = () => {
-    console.log("Conectado al WebSocket");
-    if (!welcomeSent) {
-      sendMillerMessage("¡Hola! Soy Miller, tu compañero para charlar o simplemente escuchar. ¿Quieres contarme cómo te va?");
-      welcomeSent = true;
-    }
-  };
-
-  ws.onmessage = async (event) => {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (err) {
-      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
-      cleaned = cleaned.replace(/^"+|"+$/g, "");
-      data = { reply: [cleaned] };
-    }
-
-    if (data.reply) {
-      awaitingUser = false; // Miller respondió, espera ahora al usuario
-      clearTimeout(autoMessageTimeout);
-
-      for (let b of data.reply) {
-        await delay(500 + Math.random() * 800); // Delay natural
-        addBubble("ai", b);
-      }
-
-      // Reiniciar auto mensaje si el usuario tarda
-      startAutoMessageTimer();
-    }
-  };
-
-  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
-  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
-}
-connectWS();
-
-// -------------------------
-// FUNCIONES AUX
+// ENVÍO DE MENSAJE
 // -------------------------
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
-    awaitingUser = true;
+    awaitingUser = true; // Miller espera la respuesta del usuario
     clearTimeout(autoMessageTimeout);
     startAutoMessageTimer();
   } else {
@@ -161,30 +113,76 @@ function sendMillerMessage(text) {
   addBubble("ai", text);
 }
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // -------------------------
 // MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
 // -------------------------
 function startAutoMessageTimer() {
+  clearTimeout(autoMessageTimeout);
   autoMessageTimeout = setTimeout(() => {
     if (awaitingUser) {
-      sendMillerMessage("¿Sigues ahí? Estoy aquí si quieres compartir algo o simplemente charlar.");
-      startAutoMessageTimer(); // Se reinicia el timer
+      sendMillerMessage("¿Sigues ahí? Si quieres, puedo escucharte cuando estés listo.");
+      startAutoMessageTimer();
     }
   }, 12000); // 12 segundos sin respuesta
 }
 
 // -------------------------
-// ENVÍO DE MENSAJE
+// WEB SOCKET CON RECONEXIÓN
+// -------------------------
+let ws;
+function connectWS() {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
+
+  ws.onopen = () => console.log("Conectado al WebSocket");
+
+  ws.onmessage = async (event) => {
+    let data;
+    try {
+      data = JSON.parse(event.data);
+    } catch (err) {
+      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
+      cleaned = cleaned.replace(/^"+|"+$/g, "");
+      data = { reply: [cleaned] };
+    }
+
+    if (data.reply) {
+      awaitingUser = false; // Espera turno del usuario
+      clearTimeout(autoMessageTimeout);
+
+      for (let b of data.reply) {
+        await delay(500 + Math.random() * 800); // Delay natural entre burbujas
+        addBubble("ai", b);
+      }
+
+      startAutoMessageTimer();
+    }
+  };
+
+  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
+  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
+}
+connectWS();
+
+function reconnectWS() {
+  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
+
+// -------------------------
+// SUBMIT FORM
 // -------------------------
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
   if (text) send(text);
 });
+
+// -------------------------
+// RETARDO ENTRE BURBUJAS
+// -------------------------
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // -------------------------
 // MICROFONO
