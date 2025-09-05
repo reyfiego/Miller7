@@ -89,13 +89,7 @@ function escapeHtml(str) {
 }
 
 // -------------------------
-// CONTROL DE HILO
-// -------------------------
-let awaitingUser = false;      // Bloquea mensajes hasta que el usuario responda
-let autoMessageTimeout = null; // Temporizador de mensajes automáticos
-
-// -------------------------
-// WEBSOCKET
+// WEBSOCKET OPTIMIZADO
 // -------------------------
 let ws;
 function connectWS() {
@@ -114,21 +108,15 @@ function connectWS() {
       data = { reply: [cleaned] };
     }
 
-    if (data.reply && !awaitingUser) {
-      awaitingUser = true;
-      clearTimeout(autoMessageTimeout);
-
+    if (data.reply) {
       const bubbles = data.reply.filter(b => b.trim() !== "").slice(0, 3); // máximo 3 burbujas
 
-      // Cada burbuja tiene su propio delay aleatorio, no bloqueante
+      // Enviar cada burbuja con un delay pequeño y aleatorio
       bubbles.forEach((b, i) => {
-        setTimeout(() => addBubble("ai", b), 20 + Math.random() * 60 * i);
+        setTimeout(() => {
+          addBubble("ai", b);
+        }, i * (200 + Math.random() * 400)); // 200-600ms entre burbujas
       });
-
-      // Reinicia temporizador de espera
-      autoMessageTimeout = setTimeout(() => {
-        awaitingUser = false;
-      }, 15000);
     } else if (typeof data === "string" && data.trim() !== "") {
       addBubble("ai", data);
     }
@@ -149,7 +137,6 @@ function reconnectWS() {
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  awaitingUser = false; // Usuario respondió, desbloquea a Miller
 
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
