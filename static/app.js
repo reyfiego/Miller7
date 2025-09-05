@@ -89,11 +89,10 @@ function escapeHtml(str) {
 }
 
 // -------------------------
-// CONTROL DE MENSAJES AUTOMÁTICOS
+// CONTROL DE HILO
 // -------------------------
-let lastUserInteraction = new Date();
-let consecutiveAuto = 0;
-const MAX_AUTO = 2; // máximo de mensajes automáticos seguidos
+let awaitingUser = false;      // Bloquea mensajes hasta que el usuario responda
+let autoMessageTimeout = null; // Temporizador de mensajes automáticos
 
 // -------------------------
 // WEBSOCKET
@@ -112,25 +111,22 @@ function connectWS() {
     } catch (err) {
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
       cleaned = cleaned.replace(/^"+|"+$/g, "");
-      data = { reply: [{ content: cleaned }] };
+      data = { reply: [cleaned] };
     }
 
-    if (data.reply) {
+    if (data.reply && !awaitingUser) {
+      awaitingUser = true; // Miller envía un mensaje, bloquea hasta respuesta del usuario
+      clearTimeout(autoMessageTimeout);
+
       for (let b of data.reply) {
-        const now = new Date();
-        const idleSeconds = (now - lastUserInteraction) / 1000;
-
-        // Solo mostrar mensajes automáticos si el usuario está inactivo
-        if (b.auto && idleSeconds < 10) continue;
-
         await delay(500 + Math.random() * 800);
-        addBubble("ai", b.content || b);
-
-        if (b.auto) consecutiveAuto++;
-        if (consecutiveAuto >= MAX_AUTO) break;
+        addBubble("ai", b);
       }
-    } else if (typeof data === "string") {
-      addBubble("ai", data);
+
+      // Reinicia temporizador de espera para próximos mensajes automáticos
+      autoMessageTimeout = setTimeout(() => {
+        awaitingUser = false;
+      }, 15000); // 15 segundos de inactividad
     }
   };
 
@@ -149,8 +145,7 @@ function reconnectWS() {
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  lastUserInteraction = new Date();
-  consecutiveAuto = 0; // reiniciamos contador
+  awaitingUser = false; // Usuario respondió, desbloquea a Miller
 
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
