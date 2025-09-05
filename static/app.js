@@ -19,12 +19,62 @@ const confirmBtn = document.getElementById("confirm");
 const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
+// Modal info
+const infoBtn = document.getElementById("info-btn");
+const modal = document.getElementById("info-modal");
+const closeModal = document.getElementById("close-modal");
+
 // Paneles login & registro
+const loginBtn = document.getElementById("login-btn");
+const registerBtn = document.getElementById("register-btn");
+const loginPanel = document.getElementById("login-panel");
+const registerPanel = document.getElementById("register-panel");
+const closeLogin = document.getElementById("close-login");
+const closeRegister = document.getElementById("close-register");
+const panelOverlay = document.getElementById("panel-overlay");
+
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// UI
+// FUNCIONES DE UI
+// -------------------------
+function openElement(element) {
+  element.classList.add("active");
+  element.classList.remove("closing");
+  if (element === loginPanel || element === registerPanel) {
+    panelOverlay.classList.add("active");
+  }
+}
+
+function closeElement(element) {
+  element.classList.add("closing");
+  setTimeout(() => {
+    element.classList.remove("active", "closing");
+    if (element === loginPanel || element === registerPanel) {
+      panelOverlay.classList.remove("active");
+    }
+  }, 300);
+}
+
+// -------------------------
+// PANEL LOGIN & REGISTRO
+// -------------------------
+loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
+registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
+closeLogin.addEventListener("click", () => closeElement(loginPanel));
+closeRegister.addEventListener("click", () => closeElement(registerPanel));
+panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
+
+// -------------------------
+// MODAL INFO
+// -------------------------
+infoBtn.addEventListener("click", () => openElement(modal));
+closeModal.addEventListener("click", () => closeElement(modal));
+window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
+
+// -------------------------
+// CHAT
 // -------------------------
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
@@ -39,64 +89,93 @@ function escapeHtml(str) {
 }
 
 // -------------------------
-// WEB SOCKET CON COLA Y TURNO
+// VARIABLES DE CONTROL
 // -------------------------
 let ws;
-let messageQueue = [];
-let userCanRespond = true; // al inicio espera mensaje del usuario
+let awaitingUser = false;
+let autoMessageTimeout = null;
+let welcomeSent = false;
 
+// -------------------------
+// CONEXIÓN WEBSOCKET
+// -------------------------
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
-  ws.onopen = () => console.log("Conectado al WebSocket");
+  ws.onopen = () => {
+    console.log("Conectado al WebSocket");
+    if (!welcomeSent) {
+      sendMillerMessage("¡Hola! Soy Miller, tu compañero para charlar o simplemente escuchar. ¿Quieres contarme cómo te va?");
+      welcomeSent = true;
+    }
+  };
 
-  ws.onmessage = (event) => {
-    let newMessages = [];
+  ws.onmessage = async (event) => {
+    let data;
     try {
-      const data = JSON.parse(event.data);
-      if (data.reply) newMessages = data.reply;
-    } catch {
-      // Si no es JSON válido, lo tomamos como mensaje crudo
-      newMessages = [event.data.trim()];
+      data = JSON.parse(event.data);
+    } catch (err) {
+      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
+      cleaned = cleaned.replace(/^"+|"+$/g, "");
+      data = { reply: [cleaned] };
     }
 
-    messageQueue.push(...newMessages);
-    processQueue();
+    if (data.reply) {
+      awaitingUser = false; // Miller respondió, espera ahora al usuario
+      clearTimeout(autoMessageTimeout);
+
+      for (let b of data.reply) {
+        await delay(500 + Math.random() * 800); // Delay natural
+        addBubble("ai", b);
+      }
+
+      // Reiniciar auto mensaje si el usuario tarda
+      startAutoMessageTimer();
+    }
   };
 
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
 }
+connectWS();
 
-function processQueue() {
-  if (userCanRespond || messageQueue.length === 0) return;
-
-  const msg = messageQueue.shift();
-
-  // Delay opcional para dar sensación humana
-  setTimeout(() => {
-    addBubble("ai", msg);
-    processQueue(); // procesa siguiente mensaje de la cola si hay
-  }, 500 + Math.random() * 500); // 0.5s a 1s aleatorio
-}
-
+// -------------------------
+// FUNCIONES AUX
+// -------------------------
 function send(text) {
-  if (!text.trim()) return;
   addBubble("you", text);
   input.value = "";
-
-  userCanRespond = false; // bloquea hasta que Miller responda
-
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
+    awaitingUser = true;
+    clearTimeout(autoMessageTimeout);
+    startAutoMessageTimer();
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+    reconnectWS();
   }
 }
 
-connectWS();
+function sendMillerMessage(text) {
+  addBubble("ai", text);
+}
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// -------------------------
+// MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
+// -------------------------
+function startAutoMessageTimer() {
+  autoMessageTimeout = setTimeout(() => {
+    if (awaitingUser) {
+      sendMillerMessage("¿Sigues ahí? Estoy aquí si quieres compartir algo o simplemente charlar.");
+      startAutoMessageTimer(); // Se reinicia el timer
+    }
+  }, 12000); // 12 segundos sin respuesta
+}
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -155,6 +234,7 @@ loginForm.addEventListener("submit", (e) => {
       alert("Inicio de sesión exitoso");
       loggedIn = true;
       localStorage.setItem("miller_logged_in", "true");
+      closeElement(loginPanel);
     } else alert(data.message || "Error en inicio de sesión");
   })
   .catch(() => alert("Error al conectar con el servidor"));
@@ -179,6 +259,7 @@ registerForm.addEventListener("submit", (e) => {
   .then(data => {
     if (data.success) {
       alert("Registro exitoso, ya puedes iniciar sesión");
+      closeElement(registerPanel);
     } else alert(data.message || "Error en registro");
   })
   .catch(() => alert("Error al conectar con el servidor"));
