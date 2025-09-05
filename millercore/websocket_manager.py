@@ -2,8 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
-import json
-import os, datetime, random, asyncio
+import json, os, datetime, random, asyncio
 from groq import Groq
 from millercore.corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
 from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, contexto_coincide
@@ -56,6 +55,8 @@ class ConnectionManager:
     async def send_personal_message(self, message: str, session_id: str):
         websocket = self.active_connections.get(session_id)
         if websocket:
+            # Limpiar exceso de puntos suspensivos
+            message = message.replace(r"(\.\.\.)+", "…")
             await websocket.send_text(message)
             self.last_bubble_time[session_id] = datetime.datetime.now()
             self.consecutive_bubbles[session_id] += 1
@@ -84,6 +85,9 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# -------------------------------
+# GENERACIÓN DE MENSAJES AUTOMÁTICOS
+# -------------------------------
 async def generar_mensaje_automatico(session_id: str) -> str:
     history = historiales.get(session_id, [])
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
@@ -111,15 +115,24 @@ async def auto_message_loop():
         idle_users = manager.get_idle_users(timeout_seconds=300)  # 5 minutos
         for sid in idle_users:
             if manager.consecutive_bubbles.get(sid, 0) >= 3:
-                continue  # no enviar más de 3 burbujas consecutivas
+                continue
             last_time = manager.last_bubble_time.get(sid, datetime.datetime.min)
             if (datetime.datetime.now() - last_time).total_seconds() < 15:
                 continue
             msg = await generar_mensaje_automatico(sid)
-            await manager.send_personal_message(msg, sid)
+            # Dividir máximo 3 burbujas
+            burbujas = dividir_burbujas_aleatorio(msg)
+            for i, b in enumerate(burbujas):
+                if i >= 3:
+                    break
+                await manager.send_personal_message(b, sid)
+                await asyncio.sleep(random.uniform(0.5, 1.2))
 
 asyncio.create_task(auto_message_loop())
 
+# -------------------------------
+# WEBSOCKET
+# -------------------------------
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
@@ -140,7 +153,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     manager.set_silence_mode(session_id, True)
                     continue
             except Exception:
-                pass  # No es JSON, continuar
+                pass
 
             user_text = data.strip()
             if not user_text:
@@ -171,6 +184,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
+                # Ajuste de respuesta ante negativas
                 if user_text.lower() in ["no", "no gracias", "prefiero no"]:
                     reply_text = "Está bien, no insistiré. Solo dime si quieres hablar de otra cosa."
 
@@ -183,9 +197,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     groq_client=groq_client
                 )
 
-                for b in burbujas:
+                # Limitar máximo 3 burbujas por mensaje
+                for i, b in enumerate(burbujas):
+                    if i >= 3:
+                        break
                     await manager.send_personal_message(b, session_id)
-                    await asyncio.sleep(random.uniform(0.5, 1.5))
+                    await asyncio.sleep(random.uniform(0.5, 1.2))
 
             except Exception as e:
                 print("Error en chat:", repr(e))

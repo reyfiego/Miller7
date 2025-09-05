@@ -89,6 +89,24 @@ function escapeHtml(str) {
 }
 
 // -------------------------
+// CONTROL DE HILO Y BURBUJAS
+// -------------------------
+let awaitingUser = false;      // Bloquea mensajes hasta que el usuario responda
+let autoMessageTimeout = null; // Temporizador de mensajes automáticos
+
+async function sendBubbles(bubbles) {
+  const maxBubbles = 3;
+  for (let i = 0; i < Math.min(bubbles.length, maxBubbles); i++) {
+    const text = bubbles[i];
+    const delayTime = 200 + Math.random() * 500; // delay random entre 200ms y 700ms
+    await delay(delayTime);
+    addBubble("ai", text);
+  }
+  // Después de enviar, se desbloquea
+  autoMessageTimeout = setTimeout(() => { awaitingUser = false; }, 15000);
+}
+
+// -------------------------
 // WEBSOCKET
 // -------------------------
 let ws;
@@ -108,30 +126,17 @@ function connectWS() {
       data = { reply: [cleaned] };
     }
 
-    if (data.reply) {
-      // Combinar mensajes consecutivos similares para evitar repeticiones
-      let lastMsg = "";
-      const bubbles = [];
-      for (let b of data.reply) {
-        if (!b.trim()) continue;
-        if (b !== lastMsg) {
-          bubbles.push(b);
-          lastMsg = b;
-        }
-        if (bubbles.length >= 3) break; // máximo 3 burbujas
-      }
+    if (!awaitingUser) {
+      awaitingUser = true;
+      clearTimeout(autoMessageTimeout);
 
-      for (let b of bubbles) {
-        // Delay proporcional a la longitud, mínimo 200ms, máximo 600ms
-        const delayMs = Math.min(600, 200 + b.length * 10);
-        await delay(delayMs);
-        addBubble("ai", b);
+      if (data.reply) {
+        sendBubbles(data.reply);
+      } else if (typeof data === "string") {
+        sendBubbles([data]);
       }
-    } else if (typeof data === "string" && data.trim() !== "") {
-      addBubble("ai", data);
     }
-};
-
+  };
 
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
@@ -148,6 +153,7 @@ function reconnectWS() {
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  awaitingUser = false; // Usuario respondió, desbloquea a Miller
 
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
@@ -167,7 +173,7 @@ form.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// RETARDO
+// RETARDO SIMPLE
 // -------------------------
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
