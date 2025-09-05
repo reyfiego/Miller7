@@ -20,9 +20,6 @@ groq_client = Groq(api_key=API_KEY)
 # FUNCIONES
 # ==========================
 def dividir_burbujas_aleatorio(texto: str) -> list[str]:
-    """
-    Divide un texto largo en burbujas más pequeñas conservando puntuación y pausas naturales.
-    """
     texto = texto.replace("...", "…")
     frases = re.split(r'(?<=[.?!…])\s+', texto)
     burbujas = []
@@ -40,9 +37,6 @@ def dividir_burbujas_aleatorio(texto: str) -> list[str]:
 
 
 def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
-    """
-    Verifica si el mensaje coincide con algún elemento del contexto previo.
-    """
     mensaje_lower = mensaje.lower()
     for frase in contexto:
         if frase.lower() in mensaje_lower:
@@ -51,10 +45,6 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
 
 
 def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
-    """
-    Genera una frase corta basada en el contexto usando GROQ.
-    Si falla, devuelve string vacío para no romper el flujo.
-    """
     prompt = f"""
 Eres un asistente empático y humano.
 Usuario: {contexto}
@@ -79,29 +69,24 @@ def enriquecer_burbujas_contextual(
     contexto: str | list[str],
     groq_client=groq_client,
     max_burbujas: int = 4,
-    omit_delay: bool = False
-) -> list[dict]:
-    """
-    Enriquece las burbujas agregando frases cortas basadas en el contexto.
-    Devuelve lista de dicts con texto y flag omit_delay para frontend.
-    """
+    burbujas_previas: set[str] = None
+) -> list[str]:
     if isinstance(contexto, list):
         contexto = " ".join(contexto)
 
     resultado = []
-    frases_recientes = set()
+    frases_recientes = set() if burbujas_previas is None else set(burbujas_previas)
 
     for b in burbujas:
-        b = re.sub(r'…{2,}$', '…', b.strip())  # normaliza puntos suspensivos
+        b = re.sub(r'…{2,}$', '…', b.strip())
         if b not in frases_recientes:
-            resultado.append({"text": b, "omit_delay": omit_delay})
+            resultado.append(b)
             frases_recientes.add(b)
 
-        # 40% de probabilidad de añadir frase contextual
         if random.random() < 0.4 and not b.endswith("?") and len(resultado) < max_burbujas:
             frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
             if frase_contextual and frase_contextual not in frases_recientes:
-                resultado.append({"text": frase_contextual, "omit_delay": omit_delay})
+                resultado.append(frase_contextual)
                 frases_recientes.add(frase_contextual)
 
         if len(resultado) >= max_burbujas:
