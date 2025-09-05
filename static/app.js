@@ -89,24 +89,6 @@ function escapeHtml(str) {
 }
 
 // -------------------------
-// CONTROL DE HILO Y BURBUJAS
-// -------------------------
-let awaitingUser = false;      // Bloquea mensajes hasta que el usuario responda
-let autoMessageTimeout = null; // Temporizador de mensajes automáticos
-
-async function sendBubbles(bubbles) {
-  const maxBubbles = 3;
-  for (let i = 0; i < Math.min(bubbles.length, maxBubbles); i++) {
-    const text = bubbles[i];
-    const delayTime = 200 + Math.random() * 500; // delay random entre 200ms y 700ms
-    await delay(delayTime);
-    addBubble("ai", text);
-  }
-  // Después de enviar, se desbloquea
-  autoMessageTimeout = setTimeout(() => { awaitingUser = false; }, 15000);
-}
-
-// -------------------------
 // WEBSOCKET
 // -------------------------
 let ws;
@@ -121,20 +103,20 @@ function connectWS() {
     try {
       data = JSON.parse(event.data);
     } catch (err) {
-      let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
-      cleaned = cleaned.replace(/^"+|"+$/g, "");
-      data = { reply: [cleaned] };
+      data = { reply: [event.data] };
     }
 
-    if (!awaitingUser) {
-      awaitingUser = true;
-      clearTimeout(autoMessageTimeout);
-
-      if (data.reply) {
-        sendBubbles(data.reply);
-      } else if (typeof data === "string") {
-        sendBubbles([data]);
+    // Si es array de burbujas, las mostramos con delay natural
+    if (Array.isArray(data.reply)) {
+      for (let i = 0; i < Math.min(data.reply.length, 3); i++) {
+        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…"); // Reduce puntos suspensivos
+        await delay(500 + Math.random() * 700); // intervalo natural entre 0.5 y 1.2 seg
+        addBubble("ai", msg);
       }
+    } else if (typeof data.reply === "string") {
+      const msg = data.reply.replace(/(\.\.\.)+/g, "…");
+      await delay(500 + Math.random() * 700);
+      addBubble("ai", msg);
     }
   };
 
@@ -153,8 +135,6 @@ function reconnectWS() {
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  awaitingUser = false; // Usuario respondió, desbloquea a Miller
-
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
   } else {
@@ -173,7 +153,7 @@ form.addEventListener("submit", (e) => {
 });
 
 // -------------------------
-// RETARDO SIMPLE
+// RETARDO ENTRE BURBUJAS
 // -------------------------
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
