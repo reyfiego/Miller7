@@ -92,7 +92,7 @@ let awaitingUser = false;
 let autoMessageTimeout = null;
 let lastUserInteraction = new Date();
 let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 1; // Solo 1 burbuja automática
+const MAX_CONSECUTIVE_BUBBLES = 2;
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -113,21 +113,24 @@ function send(text) {
   }
 }
 
+function sendMillerMessage(text) {
+  addBubble("ai", text);
+  consecutiveBubbles++;
+}
+
 // -------------------------
 // MENSAJES AUTOMÁTICOS SI EL USUARIO NO RESPONDE
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
   autoMessageTimeout = setTimeout(() => {
-    const now = new Date();
-    const diff = (now - lastUserInteraction) / 1000;
-    if (awaitingUser && diff >= 15 && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
+    if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ auto: true }));
-        consecutiveBubbles++;
       }
+      // No reiniciamos el timer aquí; se reinicia al recibir respuesta
     }
-  }, 15000); // 15s sin respuesta
+  }, 15000); // 15 segundos sin respuesta
 }
 
 // -------------------------
@@ -144,7 +147,7 @@ function connectWS() {
     let data;
     try {
       data = JSON.parse(event.data);
-    } catch {
+    } catch (err) {
       let cleaned = event.data.replace(/<\|.*?\|>/g, "").trim();
       cleaned = cleaned.replace(/^"+|"+$/g, "");
       data = { reply: [cleaned] };
@@ -218,7 +221,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 }
 
 // -------------------------
-// LOGIN & REGISTRO
+// LOGIN
 // -------------------------
 loginForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -244,6 +247,9 @@ loginForm.addEventListener("submit", (e) => {
   .catch(() => alert("Error al conectar con el servidor"));
 });
 
+// -------------------------
+// REGISTRO
+// -------------------------
 registerForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const formData = new FormData(registerForm);
