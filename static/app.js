@@ -110,12 +110,12 @@ function connectWS() {
     if (Array.isArray(data.reply)) {
       for (let i = 0; i < Math.min(data.reply.length, 3); i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…"); // Reduce puntos suspensivos
-        await delay(500 + Math.random() * 700); // intervalo natural entre 0.5 y 1.2 seg
+        await delay(5000 + Math.random() * 5000); // intervalo natural entre 5 y 10 seg
         addBubble("ai", msg);
       }
     } else if (typeof data.reply === "string") {
       const msg = data.reply.replace(/(\.\.\.)+/g, "…");
-      await delay(500 + Math.random() * 700);
+      await delay(5000 + Math.random() * 5000);
       addBubble("ai", msg);
     }
   };
