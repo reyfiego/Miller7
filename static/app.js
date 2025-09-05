@@ -118,15 +118,20 @@ function connectWS() {
       awaitingUser = true; // Miller envía un mensaje, bloquea hasta respuesta del usuario
       clearTimeout(autoMessageTimeout);
 
+      let bubbleCount = 0; // contador para limitar a 3 burbujas
       for (let b of data.reply) {
-        await delay(500 + Math.random() * 800);
+        if (bubbleCount >= 3) break;          // máximo 3 burbujas
+        await delay(200 + Math.random() * 400); // retardo rápido y natural
         addBubble("ai", b);
+        bubbleCount++;
       }
 
       // Reinicia temporizador de espera para próximos mensajes automáticos
       autoMessageTimeout = setTimeout(() => {
         awaitingUser = false;
       }, 15000); // 15 segundos de inactividad
+    } else if (typeof data === "string") {
+      addBubble("ai", data);
     }
   };
 
