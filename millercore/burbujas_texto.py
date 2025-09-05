@@ -36,7 +36,8 @@ def dividir_burbujas_aleatorio(texto: str) -> list[str]:
             temp = (temp + " " + frase).strip()
     if temp:
         burbujas.append(temp.strip())
-    return burbujas[:4]  # máximo 4 burbujas por respuesta
+    return burbujas
+
 
 def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
     """
@@ -47,6 +48,7 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
         if frase.lower() in mensaje_lower:
             return True
     return False
+
 
 def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
     """
@@ -71,28 +73,37 @@ No uses más de 20 palabras.
         print("⚠️ Error generando frase contextual con Groq:", e)
         return ""
 
+
 def enriquecer_burbujas_contextual(
     burbujas: list[str],
     contexto: str | list[str],
-    groq_client = groq_client
+    groq_client=groq_client,
+    max_burbujas: int = 4
 ) -> list[str]:
     """
     Enriquece las burbujas agregando frases cortas basadas en el contexto.
-    Limita el número de frases añadidas para mantener naturalidad.
+    Limita el total de burbujas y evita repeticiones consecutivas.
     """
     if isinstance(contexto, list):
         contexto = " ".join(contexto)
 
     resultado = []
+    frases_recientes = set()
+
     for b in burbujas:
-        # evitar que una burbuja termine con múltiples puntos suspensivos
-        b = re.sub(r'…{2,}$', '…', b.strip())
-        resultado.append(b)
+        b = re.sub(r'…{2,}$', '…', b.strip())  # normaliza puntos suspensivos
+        if b not in frases_recientes:
+            resultado.append(b)
+            frases_recientes.add(b)
 
         # 40% de probabilidad de añadir frase contextual
-        if random.random() < 0.4 and not b.endswith("?") and len(resultado) < 4:
+        if random.random() < 0.4 and not b.endswith("?") and len(resultado) < max_burbujas:
             frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
-            if frase_contextual:
+            if frase_contextual and frase_contextual not in frases_recientes:
                 resultado.append(frase_contextual)
+                frases_recientes.add(frase_contextual)
+
+        if len(resultado) >= max_burbujas:
+            break
 
     return resultado
