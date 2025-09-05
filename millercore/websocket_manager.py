@@ -122,16 +122,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in historiales:
         historiales[session_id] = []
 
-    # Saludo inicial opcional
+    # Saludo inicial (solo 1 burbuja)
     saludo = get_random_greeting()
     if saludo:
         await enviar_respuesta(session_id, saludo)
 
     async def mensajes_periodicos():
         while True:
-            await asyncio.sleep(random.randint(30, 90))
+            await asyncio.sleep(30)  # chequear cada 30s
             tiempo_inactivo = (datetime.datetime.now() - ultima_interaccion).seconds
-            if tiempo_inactivo < 60:  # solo si hubo inactividad prolongada
+            if tiempo_inactivo < 90:  # solo enviar si ha estado inactivo >= 90s
                 continue
 
             history = historiales.get(session_id, [])
@@ -156,10 +156,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto_completo,
                     groq_client=groq_client,
-                    max_burbujas=2,  # solo máximo 2 burbujas por inactividad
+                    max_burbujas=2,  # máximo 2 burbujas automáticas
                     relevancia_minima=0.8
                 )
 
+                # Evitar repeticiones
                 burbujas_previas = set([b["content"] for b in historiales[session_id] if b["role"] == "assistant"])
                 for b in burbujas[:2]:
                     if b not in burbujas_previas:
@@ -182,8 +183,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             manager.update_activity(session_id)
 
             if not user_text:
-                await enviar_respuesta(session_id, "Por favor, escribe algo para responderte.")
-                continue
+                continue  # no enviar nada si está vacío
 
             historiales[session_id].append({"role": "user", "content": user_text})
             history = historiales[session_id]
@@ -210,8 +210,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Ajuste de burbujas: por defecto 1, solo más si inactivo
-                max_burbujas = 1
+                # Ajustar número de burbujas según longitud del mensaje del usuario
+                max_burbujas = 1 if len(user_text.split()) <= 3 else 2
 
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
 
@@ -247,4 +247,3 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         print("Error general en websocket:", repr(e))
         manager.disconnect(session_id)
         task.cancel()
-
