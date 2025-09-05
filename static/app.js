@@ -106,17 +106,19 @@ function connectWS() {
       data = { reply: [event.data] };
     }
 
-    // Si es array de burbujas, las mostramos con delay natural
+    // Si es saludo (string simple), mostrar sin delay
+    if (typeof data.reply === "string") {
+      addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
+      return;
+    }
+
+    // Si es array de burbujas, mostrar con delay natural (sin límite)
     if (Array.isArray(data.reply)) {
-      for (let i = 0; i < Math.min(data.reply.length, 3); i++) {
-        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…"); // Reduce puntos suspensivos
-        await delay(5000 + Math.random() * 5000); // intervalo natural entre 5 y 10 seg
+      for (let i = 0; i < data.reply.length; i++) {
+        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
+        await delay(5000 + Math.random() * 5000); // 5 a 10 segundos
         addBubble("ai", msg);
       }
-    } else if (typeof data.reply === "string") {
-      const msg = data.reply.replace(/(\.\.\.)+/g, "…");
-      await delay(5000 + Math.random() * 5000);
-      addBubble("ai", msg);
     }
   };
 

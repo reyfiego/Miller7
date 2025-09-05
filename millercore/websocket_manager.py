@@ -118,11 +118,11 @@ async def auto_message_loop():
             msg = await generar_mensaje_automatico(sid)
             burbujas = enriquecer_burbujas_contextual(
                 dividir_burbujas_aleatorio(msg),
-                contexto=historiales.get(sid, [])
+                contexto=historiales.get(sid, []),
+                max_burbujas=2  # Limitar máximo 2 burbujas para evitar respuestas múltiples
             )
             websocket = manager.active_connections.get(sid)
             if websocket:
-                # Enviar todas las burbujas juntas en un solo mensaje JSON
                 await websocket.send_text(json.dumps({"reply": burbujas}))
                 manager.last_bubble_time[sid] = datetime.datetime.now()
                 manager.consecutive_bubbles[sid] += len(burbujas)
@@ -141,14 +141,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     saludo = get_random_greeting()
     if saludo:
-        # Enviar saludo como lista para mantener consistencia
-        await websocket.send_text(json.dumps({"reply": [saludo]}))
+        # Enviar saludo como string simple para que frontend no aplique delay
+        await websocket.send_text(json.dumps({"reply": saludo}))
 
     try:
         while True:
             data = await websocket.receive_text()
             manager.update_activity(session_id)
-            # Suponiendo que el cliente envía JSON con {message: texto}
             try:
                 data_json = json.loads(data)
                 user_text = data_json.get("message", "").strip()
@@ -160,11 +159,11 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             historiales[session_id].append({"role": "user", "content": user_text})
 
-            # Preparar contexto
+            # Preparar contexto con probabilidad reducida para frases contextuales
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             for frase in FRASES_CONTEXTUALES:
                 contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
-                if contexto_coincide(user_text, contexto_lista) and random.random() < 0.4:
+                if contexto_coincide(user_text, contexto_lista) and random.random() < 0.1:  # Reducido de 0.4 a 0.1
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
@@ -185,10 +184,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
-                    contexto=historiales[session_id]
+                    contexto=historiales[session_id],
+                    max_burbujas=2  # Limitar máximo 2 burbujas
                 )
 
-                # Enviar todas las burbujas juntas en un solo mensaje JSON
                 await websocket.send_text(json.dumps({"reply": burbujas}))
                 manager.last_bubble_time[session_id] = datetime.datetime.now()
                 manager.consecutive_bubbles[session_id] += len(burbujas)
