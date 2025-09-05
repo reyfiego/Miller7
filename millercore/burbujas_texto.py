@@ -78,11 +78,12 @@ def enriquecer_burbujas_contextual(
     burbujas: list[str],
     contexto: str | list[str],
     groq_client=groq_client,
-    max_burbujas: int = 4
-) -> list[str]:
+    max_burbujas: int = 4,
+    omit_delay: bool = False
+) -> list[dict]:
     """
     Enriquece las burbujas agregando frases cortas basadas en el contexto.
-    Limita el total de burbujas y evita repeticiones consecutivas.
+    Devuelve lista de dicts con texto y flag omit_delay para frontend.
     """
     if isinstance(contexto, list):
         contexto = " ".join(contexto)
@@ -93,14 +94,14 @@ def enriquecer_burbujas_contextual(
     for b in burbujas:
         b = re.sub(r'…{2,}$', '…', b.strip())  # normaliza puntos suspensivos
         if b not in frases_recientes:
-            resultado.append(b)
+            resultado.append({"text": b, "omit_delay": omit_delay})
             frases_recientes.add(b)
 
         # 40% de probabilidad de añadir frase contextual
         if random.random() < 0.4 and not b.endswith("?") and len(resultado) < max_burbujas:
             frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
             if frase_contextual and frase_contextual not in frases_recientes:
-                resultado.append(frase_contextual)
+                resultado.append({"text": frase_contextual, "omit_delay": omit_delay})
                 frases_recientes.add(frase_contextual)
 
         if len(resultado) >= max_burbujas:

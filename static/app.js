@@ -81,24 +81,31 @@ function connectWS() {
   ws.onmessage = async (event) => {
     let data;
     try {
-      data = JSON.parse(event.data);
+        data = JSON.parse(event.data);
     } catch (err) {
-      data = { reply: [event.data] };
+        data = { reply: [event.data] };
     }
 
-    // Mostrar saludo (string) sin delay
+    // Normalizamos a lista de objetos {text, omit_delay}
+    let burbujas = [];
     if (typeof data.reply === "string") {
-      addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
-      return;
+        burbujas.push({ text: data.reply.replace(/(\.\.\.)+/g, "…"), omit_delay: true });
+    } else if (Array.isArray(data.reply)) {
+        for (let b of data.reply) {
+            if (typeof b === "string") {
+                burbujas.push({ text: b.replace(/(\.\.\.)+/g, "…"), omit_delay: false });
+            } else if (b.text) {
+                burbujas.push(b);
+            }
+        }
     }
 
-    // Mostrar todas las burbujas con delay 5-10s
-    if (Array.isArray(data.reply)) {
-      for (let i = 0; i < data.reply.length; i++) {
-        const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        await delay(5000 + Math.random() * 5000);
-        addBubble("ai", msg);
-      }
+    // Mostramos cada burbuja respetando omit_delay
+    for (let b of burbujas) {
+        if (!b.omit_delay) {
+            await new Promise(resolve => setTimeout(resolve, 5000 + Math.random() * 5000));
+        }
+        addBubble("ai", b.text);
     }
   };
 
@@ -128,38 +135,6 @@ form.addEventListener("submit", (e) => {
   if (text) send(text);
 });
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// El resto del código frontend (micrófono, login, registro, etc.) permanece igual
-
-// -------------------------
-// ENVÍO DE MENSAJE
-// -------------------------
-function send(text) {
-  addBubble("you", text);
-  input.value = "";
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text }));
-  } else {
-    addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-    reconnectWS();
-  }
-}
-
-// -------------------------
-// FORMULARIO
-// -------------------------
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
-  const text = input.value.trim();
-  if (text) send(text);
-});
-
-// -------------------------
-// RETARDO ENTRE BURBUJAS
-// -------------------------
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

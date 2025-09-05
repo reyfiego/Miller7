@@ -102,10 +102,14 @@ async def auto_message_loop():
             )
             websocket = manager.active_connections.get(sid)
             if websocket:
-                await websocket.send_text(json.dumps({"reply": burbujas}))
+                for i, burbuja in enumerate(burbujas):
+                    if i == 0:
+                        await websocket.send_text(json.dumps({"reply": burbuja}))
+                    else:
+                        await asyncio.sleep(random.uniform(5, 10))
+                        await websocket.send_text(json.dumps({"reply": burbuja}))
                 manager.last_bubble_time[sid] = datetime.datetime.now()
                 manager.consecutive_bubbles[sid] += len(burbujas)
-            await asyncio.sleep(random.uniform(5, 10))
 
 asyncio.create_task(auto_message_loop())
 
@@ -115,10 +119,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in historiales:
         historiales[session_id] = []
 
+    # 1️⃣ Saludo inicial sin delay
     saludo = get_random_greeting()
     if saludo:
-        # Saludo sin delay (string simple)
-        await websocket.send_text(json.dumps({"reply": saludo}))
+        burbujas = enriquecer_burbujas_contextual(
+            dividir_burbujas_aleatorio(saludo),
+            contexto=historiales.get(session_id, []),
+            max_burbujas=2,
+            omit_delay=True
+        )
+        await websocket.send_text(json.dumps({"reply": burbujas}))
 
     ultima_respuesta_con_contexto = False
 
@@ -126,6 +136,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         while True:
             data = await websocket.receive_text()
             manager.update_activity(session_id)
+
             try:
                 data_json = json.loads(data)
                 user_text = data_json.get("message", "").strip()
@@ -135,8 +146,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not user_text:
                 continue
 
+            # Guardar mensaje del usuario
             historiales[session_id].append({"role": "user", "content": user_text})
 
+            # Preparar mensajes del sistema
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
             # Añadir frases contextuales solo si la última respuesta no las tuvo
@@ -165,12 +178,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=historiales[session_id],
-                    max_burbujas=2
+                    max_burbujas=2,
+                    omit_delay=False  # Burbuja del usuario y respuestas normales tienen delay
                 )
 
-                await websocket.send_text(json.dumps({"reply": burbujas}))
-                manager.last_bubble_time[session_id] = datetime.datetime.now()
-                manager.consecutive_bubbles[session_id] += len(burbujas)
+                # Enviar burbujas respetando delay
+                for burbuja in burbujas:
+                    if not burbuja.get("omit_delay", False):
+                        await asyncio.sleep(random.uniform(5, 10))  # delay humano entre burbujas
+                    await websocket.send_text(json.dumps({"reply": [burbuja["text"]]}))
+                    manager.last_bubble_time[session_id] = datetime.datetime.now()
+                    manager.consecutive_bubbles[session_id] += 1
 
                 ultima_respuesta_con_contexto = any(
                     "Inspírate en esta frase para responder:" in m.get("content", "")
