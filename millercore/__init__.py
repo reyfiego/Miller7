@@ -12,8 +12,8 @@ import speech_recognition as sr
 
 from groq import Groq
 from db import init_db, DB_PATH, create_session, save_message, get_session_messages
-from millercore.corazon import SYSTEM_ROLE, MENSAJES_INICIO, get_random_greeting, FRASES_CONTEXTUALES, contexto_coincide
-from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
+from millercore.corazon import SYSTEM_ROLE, MENSAJES_INICIO, get_random_greeting, FRASES_CONTEXTUALES
+from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, generar_frase_contextual_groq, contexto_coincide
 
 
 # -------------------------------
@@ -195,7 +195,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                         presence_penalty=0.9
                     )
                     reply_text = response.choices[0].message.content.strip()
-                    burbujas = enriquecer_burbujas_aleatorio(dividir_burbujas_aleatorio(reply_text))
+                    burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text))
                     for b in burbujas:
                         await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                         await asyncio.sleep(random.uniform(0.5, 1.5))
@@ -251,7 +251,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = enriquecer_burbujas_aleatorio(dividir_burbujas_aleatorio(reply_text))
+                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text))
                 for b in burbujas:
                     await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
                     await asyncio.sleep(random.uniform(0.5, 1.5))
