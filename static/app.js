@@ -108,16 +108,19 @@ function connectWS() {
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
   ws.onopen = () => console.log("Conectado al WebSocket");
+
   ws.onmessage = (event) => {
+    let data;
     try {
-      const data = JSON.parse(event.data);
-      if (data.reply && Array.isArray(data.reply)) {
-        data.reply.forEach(b => addBubble("ai", b));
-      }
+      data = JSON.parse(event.data);
     } catch (err) {
       console.error("Error parseando mensaje JSON:", err, "Mensaje recibido:", event.data);
+      // Convertir texto plano a JSON
+      data = { reply: [event.data] };
     }
+    if (data.reply) data.reply.forEach(b => addBubble("ai", b));
   };
+
   ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
 }
