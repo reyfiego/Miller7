@@ -92,7 +92,7 @@ let awaitingUser = false;
 let autoMessageTimeout = null;
 let lastUserInteraction = new Date();
 let consecutiveBubbles = 0;
-const MAX_CONSECUTIVE_BUBBLES = 2;
+const MAX_CONSECUTIVE_BUBBLES = 1;
 
 // -------------------------
 // ENVÍO DE MENSAJE
@@ -100,10 +100,11 @@ const MAX_CONSECUTIVE_BUBBLES = 2;
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  
+
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ message: text }));
     awaitingUser = true;
+    consecutiveBubbles = 0;
     lastUserInteraction = new Date();
     clearTimeout(autoMessageTimeout);
     startAutoMessageTimer();
@@ -123,14 +124,14 @@ function sendMillerMessage(text) {
 // -------------------------
 function startAutoMessageTimer() {
   clearTimeout(autoMessageTimeout);
-  autoMessageTimeout = setTimeout(async () => {
+  autoMessageTimeout = setTimeout(() => {
     if (awaitingUser && consecutiveBubbles < MAX_CONSECUTIVE_BUBBLES) {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ auto: true }));
       }
-      startAutoMessageTimer();
+      consecutiveBubbles++;
     }
-  }, 15000); // 15 segundos sin respuesta
+  }, 20000); // 20 segundos sin respuesta
 }
 
 // -------------------------
@@ -280,4 +281,6 @@ window.addEventListener("keydown", detectUserReturn);
 
 function detectUserReturn() {
   lastUserInteraction = new Date();
+  clearTimeout(autoMessageTimeout);
+  startAutoMessageTimer();
 }
