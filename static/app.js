@@ -97,6 +97,9 @@ let autoMessageTimeout = null; // Temporizador de mensajes automáticos
 // -------------------------
 // WEBSOCKET
 // -------------------------
+// -------------------------
+// WEBSOCKET
+// -------------------------
 let ws;
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
@@ -115,34 +118,34 @@ function connectWS() {
     }
 
     if (data.reply && !awaitingUser) {
-      awaitingUser = true; // Miller envía un mensaje, bloquea hasta respuesta del usuario
+      awaitingUser = true;
       clearTimeout(autoMessageTimeout);
 
-      let bubbleCount = 0; // contador para limitar a 3 burbujas
-      for (let b of data.reply) {
-        if (bubbleCount >= 3) break;          // máximo 3 burbujas
-        await delay(200 + Math.random() * 400); // retardo rápido y natural
+      // ✅ ahora Miller envía hasta 3 burbujas seguidas con intervalo random
+      for (let i = 0; i < Math.min(data.reply.length, 3); i++) {
+        let b = data.reply[i];
+        let randomDelay = 300 + Math.random() * 900; // entre 0.3s y 1.2s
+        await delay(randomDelay);
         addBubble("ai", b);
-        bubbleCount++;
       }
 
-      // Reinicia temporizador de espera para próximos mensajes automáticos
+      // desbloqueo si el usuario no responde después de un rato
       autoMessageTimeout = setTimeout(() => {
         awaitingUser = false;
-      }, 15000); // 15 segundos de inactividad
-    } else if (typeof data === "string") {
-      addBubble("ai", data);
+      }, 12000); // 12s
     }
   };
 
-  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
-  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
+  ws.onclose = () => {
+    console.log("WebSocket cerrado. Reconectando en 3s...");
+    setTimeout(connectWS, 3000);
+  };
+  ws.onerror = (err) => {
+    console.error("Error WebSocket:", err);
+    ws.close();
+  };
 }
-connectWS();
 
-function reconnectWS() {
-  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-}
 
 // -------------------------
 // ENVÍO DE MENSAJE
