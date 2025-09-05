@@ -115,35 +115,24 @@ function connectWS() {
     }
 
     if (data.reply && !awaitingUser) {
-      awaitingUser = true; 
+      awaitingUser = true; // Bloquea hasta respuesta del usuario
       clearTimeout(autoMessageTimeout);
 
-      let bubbleCount = 0;
-      for (let b of data.reply) {
-        if (bubbleCount >= 3) break;          
-        // delay aleatorio 0.5s – 1.5s
-        await delay(500 + Math.random() * 1000);
-        addBubble("ai", b);
-        bubbleCount++;
-      }
+      const bubbles = data.reply.slice(0, 3); // máximo 3 burbujas
+      bubbles.forEach((b, i) => {
+        const delayTime = 300 + Math.random() * 400 + i * 250; // retardo variable y natural
+        setTimeout(() => addBubble("ai", b), delayTime);
+      });
 
-      // después de 7s sin respuesta, desbloquea a Miller
-      autoMessageTimeout = setTimeout(() => {
-        awaitingUser = false;
-      }, 7000);
+      // Desbloquea a Miller después de 15s de inactividad
+      autoMessageTimeout = setTimeout(() => { awaitingUser = false; }, 15000);
     } else if (typeof data === "string") {
       addBubble("ai", data);
     }
   };
 
-  ws.onclose = () => { 
-    console.log("WebSocket cerrado. Reconectando en 3s..."); 
-    setTimeout(connectWS, 3000); 
-  };
-  ws.onerror = (err) => { 
-    console.error("Error WebSocket:", err); 
-    ws.close(); 
-  };
+  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
+  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
 }
 connectWS();
 
@@ -200,27 +189,11 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     waveBar.style.width = level + "%";
   });
 
-  recognition.addEventListener("end", () => { 
-    micBtn.disabled = false; 
-    waveBar.style.width = "0%"; 
-  });
+  recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
 
-  micBtn.addEventListener("click", () => { 
-    overlay.style.display = "flex"; 
-    micBtn.disabled = true; 
-    recognition.start(); 
-  });
-  confirmBtn.addEventListener("click", () => { 
-    if (currentTranscript.trim()) send(currentTranscript); 
-    overlay.style.display = "none"; 
-    currentTranscript = ""; 
-    waveBar.style.width = "0%"; 
-  });
-  cancelBtn.addEventListener("click", () => { 
-    overlay.style.display = "none"; 
-    currentTranscript = ""; 
-    waveBar.style.width = "0%"; 
-  });
+  micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
+  confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
+  cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
 } else {
   micBtn.disabled = true;
   micBtn.title = "Tu navegador no soporta reconocimiento de voz";
