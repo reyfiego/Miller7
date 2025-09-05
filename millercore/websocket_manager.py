@@ -128,9 +128,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     if session_id not in historiales:
         historiales[session_id] = []
 
+    # Saludo inicial (solo 1 burbuja)
     saludo = get_random_greeting()
     if saludo:
         await enviar_respuesta(session_id, saludo)
+
+    async def enviar_mensaje_auto():
+        await asyncio.sleep(20)  # espera 20s de inactividad
+        idle_time = (datetime.datetime.now() - ultima_interaccion).total_seconds()
+        if idle_time >= 20:
+            msg = await generar_mensaje_automatico(session_id)
+            await enviar_respuesta(session_id, msg)
 
     try:
         while True:
@@ -140,14 +148,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             manager.update_activity(session_id)
 
             if not user_text:
-                continue
+                continue  # no enviar nada si está vacío
 
             historiales[session_id].append({"role": "user", "content": user_text})
 
-            # Preparar sistema + frases contextuales
+            # Construir mensajes del sistema
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             for frase in FRASES_CONTEXTUALES:
-                if contexto_coincide(user_text, frase["contexto"]):
+                contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
+                if contexto_coincide(user_text, contexto_lista) and random.random() < 0.4:
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
@@ -165,33 +174,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
-
-                # Burbujas
-                max_burbujas = 1 if len(user_text.split()) <= 3 else 2
-                contexto_completo = " ".join([m["content"] for m in historiales[session_id]])
-                burbujas = enriquecer_burbujas_contextual(
-                    dividir_burbujas_aleatorio(reply_text),
-                    contexto=contexto_completo,
-                    groq_client=groq_client,
-                    max_burbujas=max_burbujas,
-                    relevancia_minima=0.8
-                )
-
-                burbujas_previas = set([b["content"] for b in historiales[session_id] if b["role"] == "assistant"])
-                for b in burbujas[:max_burbujas]:
-                    if b not in burbujas_previas:
-                        await enviar_respuesta(session_id, b)
-                        burbujas_previas.add(b)
-                        await asyncio.sleep(random.uniform(0.5, 1.2))
-
+                await enviar_respuesta(session_id, reply_text)
             except Exception as e:
                 print("Error en chat:", repr(e))
                 fallback_messages = [
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
-                    "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 await enviar_respuesta(session_id, random.choice(fallback_messages))
+
+            # Lanzar el mensaje automático de retomar conversación
+            asyncio.create_task(enviar_mensaje_auto())
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
