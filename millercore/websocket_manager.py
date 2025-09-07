@@ -49,9 +49,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 async def enviar_mensajes_periodicos(session_id: str):
-    """
-    Envía mensajes periódicos si hay interacción reciente.
-    """
+    """Envía mensajes periódicos si hay interacción reciente."""
     try:
         while True:
             await asyncio.sleep(random.randint(30, 90))
@@ -88,7 +86,6 @@ async def enviar_mensajes_periodicos(session_id: str):
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
-    ultima_interaccion = datetime.datetime.now()
     burbujas_mostradas: set[str] = set()
 
     # Saludo inicial
@@ -104,7 +101,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
-            ultima_interaccion = datetime.datetime.now()
             if not user_text:
                 await manager.send_personal_message({"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, session_id)
                 continue
@@ -114,9 +110,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             history.append({"role": "user", "content": user_text})
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
 
-            # Frases contextuales
+            # Aplicar frases contextuales
             for frase in FRASES_CONTEXTUALES:
-                if any(p.lower() in user_text.lower() for p in frase["contexto"].split(",")) and random.random() < 0.4:
+                contextos = frase["contexto"]
+                if isinstance(contextos, str):
+                    lista_contextos = contextos.split(",")
+                elif isinstance(contextos, list):
+                    lista_contextos = contextos
+                else:
+                    continue
+
+                if any(p.lower() in user_text.lower() for p in lista_contextos) and random.random() < 0.4:
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
