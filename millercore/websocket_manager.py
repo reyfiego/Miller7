@@ -1,6 +1,5 @@
 # millercore/websocket_manager.py
 import os
-import json
 import datetime
 import asyncio
 import random
@@ -78,6 +77,8 @@ async def enviar_mensajes_periodicos(session_id: str):
                     presence_penalty=0.9
                 )
                 reply_text = response.choices[0].message.content.strip()
+
+                # Enriquecer burbujas usando el último contexto
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto
@@ -90,6 +91,7 @@ async def enviar_mensajes_periodicos(session_id: str):
                     await asyncio.sleep(random.uniform(0.5, 1.2))
 
                 save_message(session_id, "assistant", reply_text)
+
             except Exception as e:
                 print(f"[{session_id}] Error en mensaje periódico:", repr(e))
 
@@ -134,13 +136,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # Aplicar frases contextuales
             for frase in FRASES_CONTEXTUALES:
                 contextos = frase["contexto"]
-                if isinstance(contextos, str):
-                    lista_contextos = contextos.split(",")
-                elif isinstance(contextos, list):
-                    lista_contextos = contextos
-                else:
-                    continue
-
+                lista_contextos = contextos.split(",") if isinstance(contextos, str) else contextos
                 if any(p.lower() in user_text.lower() for p in lista_contextos) and random.random() < 0.4:
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
@@ -183,13 +179,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
+                # Fallback
                 fallback_messages = [
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 fallback_msg = random.choice(fallback_messages)
-                # Enriquecer fallback
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(fallback_msg),
                     contexto=user_text
@@ -206,3 +202,4 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     except Exception as e:
         print(f"[{session_id}] Error general websocket:", repr(e))
         manager.disconnect(session_id)
+
