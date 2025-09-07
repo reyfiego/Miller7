@@ -9,14 +9,18 @@ router = APIRouter()
 # Simulación cliente Groq (solo para ejemplo)
 class GroqClient:
     def chat_completion(self, messages):
-        user_msg = messages[-1]["content"] if messages else "hola"
-        respuestas_posibles = [
-            f"Claro, me dices: {user_msg}",
-            f"Entiendo que dices: {user_msg}",
-            f"Respuesta a: {user_msg}",
-            f"Estoy pensando en lo que dices: {user_msg}",
-        ]
-        return random.choice(respuestas_posibles)
+        user_msg = messages[-1]["content"].lower() if messages else "hola"
+        
+        if "hola" in user_msg or "hey" in user_msg:
+            return "¡Hola! ¿En qué puedo ayudarte hoy?"
+        elif "cómo estás" in user_msg:
+            return "Estoy bien, gracias por preguntar. ¿Y tú?"
+        elif "gracias" in user_msg:
+            return "¡De nada! Estoy aquí para ayudarte."
+        else:
+            # Respuesta por defecto
+            return f"No estoy seguro de entender '{user_msg}', ¿puedes aclarar?"
+
 
 groq_client = GroqClient()
 
