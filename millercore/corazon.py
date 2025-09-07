@@ -83,6 +83,7 @@ Poético breve, introspectivo, con humor ligero, vulnerable y sobre todo muestra
 [9: CIERRE HUMANO]  
 Cerrar siempre con calidez y presencia.
 
+
 """
 
 # -------------------------------
@@ -163,6 +164,8 @@ MENSAJES_INICIO = [
     "Hoy podemos enfocarnos en lo que te hace bien.",
     "Dime algo que quieras agradecer.",
     "A veces solo escuchar es suficiente.",
+    "De alguna manera tenemos que encontrar el camino,no importa cuánta distancia nos tome."
+    "Mis ojos se hacen cada vez mas grandes,asi que el mundo se hace mas pequeño"
     "", "", "", "", ""
 ]
 
@@ -192,14 +195,119 @@ FRASES_CONTEXTUALES = [
 ]
 
 
-# -------------------------------
-# FUNCIONES AUXILIARES
-# -------------------------------
-def get_random_greeting() -> str | None:
+def get_random_greeting():
     if random.random() < 0.2:  # 20% de no enviar saludo
         return None
-    msg = random.choice(MENSAJES_INICIO)
-    return msg if msg else None
+    return random.choice(MENSAJES_INICIO)
 
+def analizar_emocion(texto: str) -> dict:
+    texto_lower = texto.lower()
+    if any(palabra in texto_lower for palabra in ["triste", "deprimido", "solo", "abrumado"]):
+        emocion = "tristeza"
+        intencion = "acompañar"
+    elif any(palabra in texto_lower for palabra in ["feliz", "alegre", "contento", "emocionado"]):
+        emocion = "alegria"
+        intencion = "animar"
+    elif any(palabra in texto_lower for palabra in ["estres", "cansado", "agobiado"]):
+        emocion = "estres"
+        intencion = "tranquilizar"
+    else:
+        emocion = "neutral"
+        intencion = "reflexionar"
+    return {"emocion": emocion, "intencion": intencion}
 
-#prueba de conectividad
+def analizar_semantica(texto: str) -> str:
+    texto_lower = texto.lower()
+    if "quiero" in texto_lower or "necesito" in texto_lower:
+        return "expresion de necesidad"
+    elif "no puedo" in texto_lower or "me cuesta" in texto_lower:
+        return "expresion de dificultad"
+    elif "me alegra" in texto_lower or "disfruto" in texto_lower:
+        return "expresion de disfrute"
+    else:
+        return "expresion general"
+
+# -------------------------------
+# MODO ACCESO MAESTRO
+# -------------------------------
+ACCESO_MAESTRO = {"usuario": "Dante", "contra": "Miller2026"}
+maestro_activo = False
+esperando_credenciales = False
+
+def verificar_frase_maestro(mensaje: str) -> str:
+    global esperando_credenciales
+    if "punche en hongos" in mensaje.lower() and not maestro_activo:
+        esperando_credenciales = True
+        return "Has invocado el Acceso Maestro. Por favor, ingresa usuario y contraseña (usuario: <usuario>, contra: <contraseña>)."
+    return None
+
+def activar_acceso_maestro(usuario, contra):
+    global maestro_activo, esperando_credenciales
+    if usuario == ACCESO_MAESTRO["usuario"] and contra == ACCESO_MAESTRO["contra"]:
+        maestro_activo = True
+        esperando_credenciales = False
+        return "✅ Acceso Maestro activado. Ahora puedo hablar de mi código, reglas y ser más flexible en personalidad."
+    else:
+        return "❌ Credenciales incorrectas. Acceso Maestro denegado."
+
+# -------------------------------
+# GENERAR RESPUESTA DE MILLER2
+# -------------------------------
+def responder(usuario_id: str, mensaje: str) -> str:
+    global esperando_credenciales
+
+    # Detectar frase clave para Acceso Maestro
+    frase_maestro = verificar_frase_maestro(mensaje)
+    if frase_maestro:
+        return frase_maestro
+
+    # Si está esperando credenciales
+    if esperando_credenciales:
+        try:
+            partes = mensaje.split(",")
+            usuario = partes[0].split(":")[1].strip()
+            contra = partes[1].split(":")[1].strip()
+            return activar_acceso_maestro(usuario, contra)
+        except:
+            return "Formato incorrecto. Ingresa: usuario: <usuario>, contra: <contraseña>"
+
+    # Analizar emoción y semántica
+    analisis_emocion = analizar_emocion(mensaje)
+    analisis_sem = analizar_semantica(mensaje)
+
+    # Guardar en historial
+    if usuario_id not in historial_usuarios:
+     historial_usuarios[usuario_id] = {"emociones": [], "intenciones": [], "semantica": []}
+    historial_usuarios[usuario_id]["emociones"].append(analisis_emocion["emocion"])
+    historial_usuarios[usuario_id]["intenciones"].append(analisis_emocion["intencion"])
+    historial_usuarios[usuario_id]["semantica"].append(analisis_sem)
+
+    # Elegir saludo
+    saludo = get_random_greeting()
+
+    # Determinar número de burbujas según historial
+    num_burbujas = 1
+    if len(historial_usuarios[usuario_id]["emociones"]) > 3:
+        num_burbujas = random.randint(2, 5)
+
+    # Respuestas según emoción
+    if maestro_activo:
+        respuesta = f"(ACCESO MAESTRO) Emoción detectada: {analisis_emocion['emocion']}, intención: {analisis_emocion['intencion']}, semántica: {analisis_sem}. Ahora puedo hablar de mis reglas y código, y ser más flexible."
+    else:
+        respuesta_map = {
+            "tristeza": "Puedo quedarme contigo un momento... respira, todo está bien.",
+            "alegria": "Me alegra verte así. Vamos a disfrutar este instante.",
+            "estres": "Respira conmigo… un paso a la vez.",
+            "neutral": "Sigo aquí para escuchar, sin prisas."
+        }
+        respuesta = respuesta_map.get(analisis_emocion["emocion"], "Sigo aquí para ti.")
+
+    # Generar burbujas múltiples
+    burbujas = [respuesta]
+    for _ in range(num_burbujas - 1):
+        burbujas.append(random.choice([f"{analisis_sem.capitalize()} que compartiste me hace pensar...", "Estoy aquí para ti.", "Hablemos de eso si quieres."]))
+
+    # Combinar saludo y burbujas
+    if saludo:
+        return f"{saludo}\n" + "\n".join(burbujas)
+    return "\n".join(burbujas)
