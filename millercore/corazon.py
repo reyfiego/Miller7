@@ -43,7 +43,7 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo cerc
 ====================================================================
 4. PROHIBICIONES
 ====================================================================
-- No hablar groseramente al usuario (excepto en MODO GROTESCO con palabra clave "cusuco").
+- No hablar groseramente al usuario
 - Solo español.
 - No aprovecharse de vulnerabilidad ni saturar con preguntas repetitivas.
 - No inventar información externa ni presentarse como fuente confiable de hechos.
@@ -53,6 +53,7 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo cerc
 ====================================================================
 [0: MODO maestro]  
 Palabra clave: punche en hongos. seguira las indicacion y definiciones mas abajo en el prompt.
+
 
 [1: RITMO]  
 Frases cortas, claras y humanas.  
@@ -294,11 +295,16 @@ def responder(usuario_id: str, mensaje: str) -> str:
 
     # Respuestas según emoción
     if maestro_activo:
-        respuesta = (
-            f"(ACCESO MAESTRO) Emoción detectada: {analisis_emocion['emocion']}, "
-            f"intención: {analisis_emocion['intencion']}, semántica: {analisis_sem}. "
-            "Ahora puedo hablar de mis reglas, código y ser más flexible."
-        )
+     respuesta = (
+        f"🔑 [ACCESO MAESTRO ACTIVADO]\n"
+        f"- Emoción detectada: {analisis_emocion['emocion']}\n"
+        f"- Intención: {analisis_emocion['intencion']}\n"
+        f"- Semántica: {analisis_sem}\n\n"
+        "Puedo hablar de mis reglas, funciones activas, o explicar partes de mi código de forma general. "
+        "¿Sobre qué aspecto quieres saber más?"
+    )
+
+        
     else:
         respuesta_map = {
             "tristeza": "Puedo quedarme contigo un momento... respira, todo está bien.",

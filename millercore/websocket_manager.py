@@ -1,11 +1,18 @@
+# websocket.py
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 import json, os, datetime, random, asyncio
 from groq import Groq
+
+# Core de Miller
 from millercore.corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
 from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, contexto_coincide
+
+# Persistencia
+from db import create_session, save_message, get_session_messages
 
 # ==========================
 # CONFIG
@@ -23,7 +30,7 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Historial de conversaciones
+# Historial de conversaciones en memoria (backup a DB)
 historiales = {}
 # Burbuja enviadas previas para evitar repetición
 burbujas_enviadas = {}
@@ -66,7 +73,7 @@ manager = ConnectionManager()
 # GENERAR MENSAJE AUTOMÁTICO
 # ==========================
 async def generar_mensaje_automatico(session_id: str) -> str:
-    history = historiales.get(session_id, [])
+    history = get_session_messages(session_id) or []
     system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
     messages_for_groq = system_messages + history
     try:
@@ -75,7 +82,9 @@ async def generar_mensaje_automatico(session_id: str) -> str:
             messages=messages_for_groq,
             max_tokens=150,
             temperature=0.9,
-            top_p=0.95
+            top_p=0.95,
+            frequency_penalty=0.8,
+            presence_penalty=0.9
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -95,7 +104,7 @@ async def auto_message_loop():
         now = datetime.datetime.now()
         for sid in list(manager.active_connections.keys()):
             idle_time = (now - manager.user_last_active.get(sid, now)).total_seconds()
-            if idle_time < 300:
+            if idle_time < 300:  # Solo si hay inactividad > 5 min
                 continue
             if manager.consecutive_bubbles.get(sid, 0) >= 4:
                 continue
@@ -106,7 +115,7 @@ async def auto_message_loop():
             msg = await generar_mensaje_automatico(sid)
             burbujas = enriquecer_burbujas_contextual(
                 dividir_burbujas_aleatorio(msg),
-                contexto=historiales.get(sid, []),
+                contexto=get_session_messages(sid),
                 max_burbujas=2
             )
 
@@ -127,13 +136,14 @@ asyncio.create_task(auto_message_loop())
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
+    create_session(session_id)  # Crear sesión en DB si no existe
     if session_id not in historiales:
         historiales[session_id] = []
 
     # Saludo inicial sin delay
     saludo = get_random_greeting()
     if saludo:
-        await websocket.send_text(json.dumps({"reply": saludo}))
+        await websocket.send_text(json.dumps({"reply": [saludo]}))
         burbujas_enviadas[session_id].add(saludo)
 
     try:
@@ -150,19 +160,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             if not user_text:
                 continue
 
+            # Guardar en historial y DB
             historiales[session_id].append({"role": "user", "content": user_text})
+            save_message(session_id, "user", user_text)
 
-            # Generar respuesta ajustada
+            # Preparar prompt
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             for frase in FRASES_CONTEXTUALES:
-                contexto_lista = frase["contexto"] if isinstance(frase["contexto"], list) else [c.strip() for c in frase["contexto"].split(",")]
-                if contexto_coincide(user_text, contexto_lista) and random.random() < 0.1:
+                contexto_lista = (
+                    frase["contexto"] if isinstance(frase["contexto"], list)
+                    else [c.strip() for c in frase["contexto"].split(",")]
+                )
+                if contexto_coincide(user_text, contexto_lista) and random.random() < 0.2:
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
                     system_messages.append({"role": "system", "content": f"Inspírate en esta frase para responder: {contenido}"})
 
-            messages_for_groq = system_messages + historiales[session_id]
+            history = get_session_messages(session_id) or []
+            messages_for_groq = system_messages + history
 
             try:
                 response = groq_client.chat.completions.create(
@@ -170,15 +186,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     messages=messages_for_groq,
                     max_tokens=250,
                     temperature=0.9,
-                    top_p=0.95
+                    top_p=0.95,
+                    frequency_penalty=0.8,
+                    presence_penalty=0.9
                 )
                 reply_text = response.choices[0].message.content.strip()
+
+                # Guardar en memoria y BD
+                historiales[session_id].append({"role": "assistant", "content": reply_text})
+                save_message(session_id, "assistant", reply_text)
 
                 # Evitar repetición
                 if reply_text in burbujas_enviadas.get(session_id, set()):
                     continue
 
-                historiales[session_id].append({"role": "assistant", "content": reply_text})
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=historiales[session_id],
@@ -188,7 +209,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 # Enviar burbujas con delay humano
                 for i, b in enumerate(burbujas):
                     if i != 0:
-                        await asyncio.sleep(random.uniform(0, 10))
+                        await asyncio.sleep(random.uniform(0.5, 1.5))
                     await websocket.send_text(json.dumps({"reply": [b]}))
                     burbujas_enviadas[session_id].add(b)
                     manager.last_bubble_time[session_id] = datetime.datetime.now()
@@ -200,7 +221,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
-                     "A veces creo que las nubes contienen nuestros mayores deseos y esperanzas"
+                    "A veces creo que las nubes contienen nuestros mayores deseos y esperanzas"
                 ]
                 fallback = random.choice(fallback_messages)
                 if fallback not in burbujas_enviadas.get(session_id, set()):
