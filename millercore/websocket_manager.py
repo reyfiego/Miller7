@@ -21,6 +21,7 @@ if not API_KEY:
 groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -46,7 +47,9 @@ class ConnectionManager:
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
+
 manager = ConnectionManager()
+
 
 async def enviar_mensajes_periodicos(session_id: str):
     """Envía mensajes periódicos si hay interacción reciente."""
@@ -55,11 +58,15 @@ async def enviar_mensajes_periodicos(session_id: str):
             await asyncio.sleep(random.randint(30, 90))
             if session_id not in manager.active_connections:
                 break
+
             history = get_session_messages(session_id) or []
             if not history:
                 continue
+
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             messages_for_groq = system_messages + history
+            contexto = history[-1]["content"] if history else ""
+
             try:
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
@@ -71,17 +78,26 @@ async def enviar_mensajes_periodicos(session_id: str):
                     presence_penalty=0.9
                 )
                 reply_text = response.choices[0].message.content.strip()
-                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text))
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=contexto
+                )
+
                 for b in burbujas:
-                    await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
+                    await manager.send_personal_message(
+                        {"reply": [b], "session_id": session_id}, session_id
+                    )
                     await asyncio.sleep(random.uniform(0.5, 1.2))
+
                 save_message(session_id, "assistant", reply_text)
             except Exception as e:
                 print(f"[{session_id}] Error en mensaje periódico:", repr(e))
+
     except asyncio.CancelledError:
         print(f"[{session_id}] Tarea periódica cancelada")
     except Exception as e:
         print(f"[{session_id}] Error general tarea periódica:", repr(e))
+
 
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
@@ -91,7 +107,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
-        await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
+        await manager.send_personal_message(
+            {"reply": [saludo], "session_id": session_id}, session_id
+        )
 
     # Iniciar tarea periódica
     periodic_task = asyncio.create_task(enviar_mensajes_periodicos(session_id))
@@ -102,7 +120,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
             if not user_text:
-                await manager.send_personal_message({"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, session_id)
+                await manager.send_personal_message(
+                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id},
+                    session_id
+                )
                 continue
 
             create_session(session_id)
@@ -146,10 +167,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text))
+                # Enriquecer burbujas con contexto
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=user_text
+                )
+
                 for b in burbujas:
                     if b not in burbujas_mostradas:
-                        await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
+                        await manager.send_personal_message(
+                            {"reply": [b], "session_id": session_id}, session_id
+                        )
                         burbujas_mostradas.add(b)
                         await asyncio.sleep(random.uniform(0.5, 1.2))
 
@@ -161,13 +189,20 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 fallback_msg = random.choice(fallback_messages)
-                if fallback_msg not in burbujas_mostradas:
-                    await manager.send_personal_message({"reply": [fallback_msg], "session_id": session_id, "error": "fallback"}, session_id)
-                    burbujas_mostradas.add(fallback_msg)
+                # Enriquecer fallback
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(fallback_msg),
+                    contexto=user_text
+                )
+                for b in burbujas:
+                    if b not in burbujas_mostradas:
+                        await manager.send_personal_message(
+                            {"reply": [b], "session_id": session_id, "error": "fallback"}, session_id
+                        )
+                        burbujas_mostradas.add(b)
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
     except Exception as e:
         print(f"[{session_id}] Error general websocket:", repr(e))
         manager.disconnect(session_id)
-    
