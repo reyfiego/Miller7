@@ -194,27 +194,24 @@ FRASES_CONTEXTUALES = [
     }
 ]
 
-
-def get_random_greeting():
+# -------------------------------
+# FUNCIONES AUXILIARES
+# -------------------------------
+def get_random_greeting() -> str:
     if random.random() < 0.2:  # 20% de no enviar saludo
-        return None
+        return ""
     return random.choice(MENSAJES_INICIO)
 
 def analizar_emocion(texto: str) -> dict:
     texto_lower = texto.lower()
     if any(palabra in texto_lower for palabra in ["triste", "deprimido", "solo", "abrumado"]):
-        emocion = "tristeza"
-        intencion = "acompañar"
+        return {"emocion": "tristeza", "intencion": "acompañar"}
     elif any(palabra in texto_lower for palabra in ["feliz", "alegre", "contento", "emocionado"]):
-        emocion = "alegria"
-        intencion = "animar"
+        return {"emocion": "alegria", "intencion": "animar"}
     elif any(palabra in texto_lower for palabra in ["estres", "cansado", "agobiado"]):
-        emocion = "estres"
-        intencion = "tranquilizar"
+        return {"emocion": "estres", "intencion": "tranquilizar"}
     else:
-        emocion = "neutral"
-        intencion = "reflexionar"
-    return {"emocion": emocion, "intencion": intencion}
+        return {"emocion": "neutral", "intencion": "reflexionar"}
 
 def analizar_semantica(texto: str) -> str:
     texto_lower = texto.lower()
@@ -234,14 +231,14 @@ ACCESO_MAESTRO = {"usuario": "Dante", "contra": "Miller2026"}
 maestro_activo = False
 esperando_credenciales = False
 
-def verificar_frase_maestro(mensaje: str) -> str:
+def verificar_frase_maestro(mensaje: str) -> str | None:
     global esperando_credenciales
     if "punche en hongos" in mensaje.lower() and not maestro_activo:
         esperando_credenciales = True
         return "Has invocado el Acceso Maestro. Por favor, ingresa usuario y contraseña (usuario: <usuario>, contra: <contraseña>)."
     return None
 
-def activar_acceso_maestro(usuario, contra):
+def activar_acceso_maestro(usuario: str, contra: str) -> str:
     global maestro_activo, esperando_credenciales
     if usuario == ACCESO_MAESTRO["usuario"] and contra == ACCESO_MAESTRO["contra"]:
         maestro_activo = True
@@ -251,7 +248,12 @@ def activar_acceso_maestro(usuario, contra):
         return "❌ Credenciales incorrectas. Acceso Maestro denegado."
 
 # -------------------------------
-# GENERAR RESPUESTA DE MILLER2
+# HISTORIAL DE USUARIOS
+# -------------------------------
+historial_usuarios = {}
+
+# -------------------------------
+# FUNCION PRINCIPAL PARA RESPONDER
 # -------------------------------
 def responder(usuario_id: str, mensaje: str) -> str:
     global esperando_credenciales
@@ -264,8 +266,8 @@ def responder(usuario_id: str, mensaje: str) -> str:
     # Si está esperando credenciales
     if esperando_credenciales:
         try:
-            partes = mensaje.split(",")
-            usuario = partes[0].split(":")[1].strip()
+            partes = [p.strip() for p in mensaje.lower().split(",")]
+            usuario = partes[0].split(":")[1].strip().capitalize()
             contra = partes[1].split(":")[1].strip()
             return activar_acceso_maestro(usuario, contra)
         except:
@@ -277,7 +279,7 @@ def responder(usuario_id: str, mensaje: str) -> str:
 
     # Guardar en historial
     if usuario_id not in historial_usuarios:
-     historial_usuarios[usuario_id] = {"emociones": [], "intenciones": [], "semantica": []}
+        historial_usuarios[usuario_id] = {"emociones": [], "intenciones": [], "semantica": []}
     historial_usuarios[usuario_id]["emociones"].append(analisis_emocion["emocion"])
     historial_usuarios[usuario_id]["intenciones"].append(analisis_emocion["intencion"])
     historial_usuarios[usuario_id]["semantica"].append(analisis_sem)
@@ -285,14 +287,18 @@ def responder(usuario_id: str, mensaje: str) -> str:
     # Elegir saludo
     saludo = get_random_greeting()
 
-    # Determinar número de burbujas según historial
+    # Determinar número de burbujas
     num_burbujas = 1
     if len(historial_usuarios[usuario_id]["emociones"]) > 3:
         num_burbujas = random.randint(2, 5)
 
     # Respuestas según emoción
     if maestro_activo:
-        respuesta = f"(ACCESO MAESTRO) Emoción detectada: {analisis_emocion['emocion']}, intención: {analisis_emocion['intencion']}, semántica: {analisis_sem}. Ahora puedo hablar de mis reglas y código, y ser más flexible."
+        respuesta = (
+            f"(ACCESO MAESTRO) Emoción detectada: {analisis_emocion['emocion']}, "
+            f"intención: {analisis_emocion['intencion']}, semántica: {analisis_sem}. "
+            "Ahora puedo hablar de mis reglas, código y ser más flexible."
+        )
     else:
         respuesta_map = {
             "tristeza": "Puedo quedarme contigo un momento... respira, todo está bien.",
@@ -305,7 +311,11 @@ def responder(usuario_id: str, mensaje: str) -> str:
     # Generar burbujas múltiples
     burbujas = [respuesta]
     for _ in range(num_burbujas - 1):
-        burbujas.append(random.choice([f"{analisis_sem.capitalize()} que compartiste me hace pensar...", "Estoy aquí para ti.", "Hablemos de eso si quieres."]))
+        burbujas.append(random.choice([
+            f"{analisis_sem.capitalize()} que compartiste me hace pensar...",
+            "Estoy aquí para ti.",
+            "Hablemos de eso si quieres."
+        ]))
 
     # Combinar saludo y burbujas
     if saludo:
