@@ -82,8 +82,11 @@ function connectWS() {
 
   ws.onmessage = async (event) => {
     let data;
-    try { data = JSON.parse(event.data); } 
-    catch { data = { reply: [event.data] }; }
+    try { 
+      data = JSON.parse(event.data); 
+    } catch { 
+      data = { reply: [event.data] }; 
+    }
 
     if (typeof data.reply === "string") {
       if (!burbujasMostradas.has(data.reply)) {
@@ -97,7 +100,7 @@ function connectWS() {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
         if (burbujasMostradas.has(msg)) continue;
-        if (i !== 0) await delay(Math.random() * 10000); // delay random 0-10s
+        if (i !== 0) await delay(1000); // delay fijo de 1 segundo entre mensajes
         addBubble("ai", msg);
         burbujasMostradas.add(msg);
       }
@@ -116,9 +119,9 @@ function reconnectWS() {
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  burbujasMostradas.clear();  // Limpia el set para nuevos mensajes
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
-
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
@@ -213,5 +216,3 @@ registerForm.addEventListener("submit", (e) => {
   })
   .catch(() => alert("Error al conectar con el servidor"));
 });
-
-
