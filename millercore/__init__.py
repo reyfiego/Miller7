@@ -10,9 +10,7 @@ from groq import Groq
 from millercore.corazon import SYSTEM_ROLE, get_random_greeting, FRASES_CONTEXTUALES
 from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual, contexto_coincide
 
-# -------------------------------
-# CONFIG
-# -------------------------------
+# Configuración
 load_dotenv()
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
@@ -25,14 +23,10 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# -------------------------------
-# HISTORIAL EN MEMORIA
-# -------------------------------
+# Historial por sesión
 historiales = {}
 
-# -------------------------------
-# CONNECTION MANAGER
-# -------------------------------
+# Manejo de conexiones
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -51,74 +45,26 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# -------------------------------
-# ENDPOINT HTTP PARA HTML
-# -------------------------------
+# Página principal
 @app.get("/")
 async def root():
-    return FileResponse("static/index.html")  # Asegúrate de que este archivo exista
+    return FileResponse("static/index.html")
 
-# -------------------------------
-# WEBSOCKET CHAT
-# -------------------------------
+# WebSocket para chat
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
-    ultima_interaccion = datetime.datetime.now()
-
     if session_id not in historiales:
         historiales[session_id] = []
 
-    # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
         await manager.send_personal_message(saludo, session_id)
-
-    async def mensajes_periodicos():
-        while True:
-            await asyncio.sleep(random.randint(30, 90))
-            if (datetime.datetime.now() - ultima_interaccion).seconds > 120:
-                continue
-            history = historiales.get(session_id, [])
-            if not history:
-                continue
-
-            system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            messages_for_groq = system_messages + history
-
-            try:
-                response = groq_client.chat.completions.create(
-                    model=MODEL_ID,
-                    messages=messages_for_groq,
-                    max_tokens=150,
-                    temperature=0.9,
-                    top_p=0.95
-                )
-                reply_text = response.choices[0].message.content.strip()
-
-                contexto_completo = " ".join([m["content"] for m in history])
-                burbujas = enriquecer_burbujas_contextual(
-                    dividir_burbujas_aleatorio(reply_text),
-                    contexto=contexto_completo,
-                    groq_client=groq_client
-                )
-
-                for b in burbujas:
-                    await manager.send_personal_message(b, session_id)
-                    await asyncio.sleep(random.uniform(0.5, 1.5))
-
-                historiales[session_id].append({"role": "assistant", "content": reply_text})
-
-            except Exception as e:
-                print("Error en mensaje automático:", repr(e))
-
-    task = asyncio.create_task(mensajes_periodicos())
 
     try:
         while True:
             data = await websocket.receive_text()
             user_text = data.strip()
-            ultima_interaccion = datetime.datetime.now()
             if not user_text:
                 await manager.send_personal_message("Por favor, escribe algo para responderte.", session_id)
                 continue
@@ -165,24 +111,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             except Exception as e:
                 print("Error en chat:", repr(e))
-                fallback_messages = [
-                    "El silencio también tiene cosas que decir.",
-                    "La vida puede sentirse como una canción rota.",
-                    "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
-                ]
-                await manager.send_personal_message(random.choice(fallback_messages), session_id)
+                await manager.send_personal_message("Algo salió mal al procesar tu mensaje.", session_id)
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
-        task.cancel()
     except Exception as e:
         print("Error general en websocket:", repr(e))
         manager.disconnect(session_id)
-        task.cancel()
 
-# -------------------------------
-# ENDPOINT DE AUDIO
-# -------------------------------
+# Endpoint para reconocimiento de voz
 @app.post("/audio")
 async def audio_to_text(file: UploadFile = File(...)):
     try:
