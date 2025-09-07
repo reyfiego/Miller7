@@ -1,11 +1,13 @@
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 import asyncio
 import datetime
 import json
 import random
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-
 router = APIRouter()
+
+# luego el resto de tu código
+
 
 # Simulación cliente Groq (solo para ejemplo)
 class GroqClient:
