@@ -1,5 +1,5 @@
+# millercore/websocket_manager.py
 import os
-import json
 import datetime
 import asyncio
 import random
@@ -51,7 +51,7 @@ manager = ConnectionManager()
 
 
 async def enviar_mensajes_periodicos(session_id: str):
-    """Envía mensajes periódicos si hay interacción reciente."""
+    """Envía mensajes periódicos opcionales si hay interacción reciente."""
     try:
         while True:
             await asyncio.sleep(random.randint(30, 90))
@@ -77,20 +77,18 @@ async def enviar_mensajes_periodicos(session_id: str):
                     presence_penalty=0.9
                 )
                 reply_text = response.choices[0].message.content.strip()
-
-                # Enviar solo una burbuja final
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto
                 )
-                if burbujas:
-                    b = burbujas[0]
+
+                for b in burbujas:
                     await manager.send_personal_message(
                         {"reply": [b], "session_id": session_id}, session_id
                     )
+                    await asyncio.sleep(random.uniform(0.5, 1.2))
 
                 save_message(session_id, "assistant", reply_text)
-
             except Exception as e:
                 print(f"[{session_id}] Error en mensaje periódico:", repr(e))
 
@@ -108,9 +106,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
-        await manager.send_personal_message(
-            {"reply": [saludo], "session_id": session_id}, session_id
-        )
+        await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     # Iniciar tarea periódica
     periodic_task = asyncio.create_task(enviar_mensajes_periodicos(session_id))
@@ -168,34 +164,34 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                # Enriquecer burbujas y enviar solo una
+                # Enriquecer burbujas con contexto
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=user_text
                 )
-                if burbujas:
-                    b = burbujas[0]
+
+                for b in burbujas:
                     if b not in burbujas_mostradas:
                         await manager.send_personal_message(
                             {"reply": [b], "session_id": session_id}, session_id
                         )
                         burbujas_mostradas.add(b)
+                        await asyncio.sleep(random.uniform(0.5, 1.2))
 
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
+                # fallback
                 fallback_messages = [
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
                 ]
                 fallback_msg = random.choice(fallback_messages)
-
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(fallback_msg),
                     contexto=user_text
                 )
-                if burbujas:
-                    b = burbujas[0]
+                for b in burbujas:
                     if b not in burbujas_mostradas:
                         await manager.send_personal_message(
                             {"reply": [b], "session_id": session_id, "error": "fallback"}, session_id
