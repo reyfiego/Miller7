@@ -3,15 +3,24 @@ import asyncio
 import datetime
 import json
 import random
+from groq import Groq
+import os
+
+API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+
+groq = Groq(api_key=API_KEY)
 
 router = APIRouter()
 
 # Simulación cliente Groq (solo para ejemplo)
 class GroqClient:
     def chat_completion(self, messages):
-        # Simula una respuesta sencilla con contenido basado en el último mensaje
-        user_msg = messages[-1]["content"] if messages else "hola"
-        return f"Respuesta a: {user_msg}"
+        response = groq.chat.completions.create(
+            model=MODEL_ID,
+            messages=messages
+        )
+        return response.choices[0].message.content
 
 groq_client = GroqClient()
 
