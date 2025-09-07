@@ -136,11 +136,10 @@ asyncio.create_task(auto_message_loop())
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
-    create_session(session_id)  # Crear sesión en DB si no existe
+    create_session(session_id)
     if session_id not in historiales:
         historiales[session_id] = []
 
-    # Saludo inicial sin delay
     saludo = get_random_greeting()
     if saludo:
         await websocket.send_text(json.dumps({"reply": [saludo]}))
@@ -153,18 +152,22 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             try:
                 data_json = json.loads(data)
-                user_text = data_json.get("message", "").strip()
-            except Exception:
-                user_text = data.strip()
 
-            if not user_text:
+                if data_json.get("from") != "user":
+                    print(f"Ignorando mensaje no usuario: {data_json}")
+                    continue
+
+                user_text = data_json.get("message", "").strip()
+                if not user_text:
+                    continue
+
+            except Exception as e:
+                print(f"❌ Error al procesar mensaje entrante: {repr(e)}")
                 continue
 
-            # Guardar en historial y DB
             historiales[session_id].append({"role": "user", "content": user_text})
             save_message(session_id, "user", user_text)
 
-            # Preparar prompt
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             for frase in FRASES_CONTEXTUALES:
                 contexto_lista = (
@@ -175,7 +178,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     contenido = frase["texto"]
                     if frase.get("primera_persona"):
                         contenido = f"Sabes, a veces yo siento algo parecido. {contenido}"
-                    system_messages.append({"role": "system", "content": f"Inspírate en esta frase para responder: {contenido}"})
+                    system_messages.append({
+                        "role": "system",
+                        "content": f"Inspírate en esta frase para responder: {contenido}"
+                    })
 
             history = get_session_messages(session_id) or []
             messages_for_groq = system_messages + history
@@ -192,11 +198,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Guardar en memoria y BD
                 historiales[session_id].append({"role": "assistant", "content": reply_text})
                 save_message(session_id, "assistant", reply_text)
 
-                # Evitar repetición
                 if reply_text in burbujas_enviadas.get(session_id, set()):
                     continue
 
@@ -206,7 +210,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     max_burbujas=4
                 )
 
-                # Enviar burbujas con delay humano
                 for i, b in enumerate(burbujas):
                     if i != 0:
                         await asyncio.sleep(random.uniform(0.5, 1.5))

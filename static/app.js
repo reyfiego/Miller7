@@ -117,7 +117,8 @@ function send(text) {
   addBubble("you", text);
   input.value = "";
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text }));
+    ws.send(JSON.stringify({ from: "user", message: text }));
+
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
