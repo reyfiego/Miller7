@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 import os, uuid
 import speech_recognition as sr
 
-from .websocket_manager import router as websocket_router  # <--- importa el router
+from millercore.websocket_manager import router as websocket_router
+ # <--- importa el router
 
 load_dotenv()
 
