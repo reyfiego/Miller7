@@ -31,6 +31,7 @@ const panelOverlay = document.getElementById("panel-overlay");
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
+// Funciones de UI
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
@@ -49,6 +50,7 @@ function closeElement(element) {
   }, 300);
 }
 
+// Event listeners UI
 loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
 registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
 closeLogin.addEventListener("click", () => closeElement(loginPanel));
@@ -59,6 +61,9 @@ infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
 window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
 
+// -------------------------
+// FUNCIONES DE CHAT
+// -------------------------
 function addBubble(sender, text) {
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
@@ -74,6 +79,9 @@ function escapeHtml(str) {
 let ws;
 let burbujasMostradas = new Set();
 
+// -------------------------
+// WEBSOCKET
+// -------------------------
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
@@ -88,19 +96,12 @@ function connectWS() {
       data = { reply: [event.data] }; 
     }
 
-    if (typeof data.reply === "string") {
-      if (!burbujasMostradas.has(data.reply)) {
-        addBubble("ai", data.reply.replace(/(\.\.\.)+/g, "…"));
-        burbujasMostradas.add(data.reply);
-      }
-      return;
-    }
-
+    // data.reply siempre es un array
     if (Array.isArray(data.reply)) {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
         if (burbujasMostradas.has(msg)) continue;
-        if (i !== 0) await delay(1000); // delay fijo de 1 segundo entre mensajes
+        if (i !== 0) await delay(500); // delay entre burbujas
         addBubble("ai", msg);
         burbujasMostradas.add(msg);
       }
@@ -112,14 +113,10 @@ function connectWS() {
 }
 connectWS();
 
-function reconnectWS() {
-  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-}
-
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  burbujasMostradas.clear();  // Limpia el set para nuevos mensajes
+  burbujasMostradas.clear(); // Limpia para nuevas respuestas
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
   } else {
@@ -128,15 +125,17 @@ function send(text) {
   }
 }
 
+function reconnectWS() {
+  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
+
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = input.value.trim();
   if (text) send(text);
 });
 
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // -------------------------
 // MICROFONO
@@ -151,8 +150,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 
   recognition.addEventListener("result", (e) => {
     currentTranscript = e.results[0][0].transcript;
-    const level = Math.min(100, Math.random() * 100);
-    waveBar.style.width = level + "%";
+    waveBar.style.width = Math.min(100, Math.random() * 100) + "%";
   });
 
   recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
@@ -166,7 +164,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 }
 
 // -------------------------
-// LOGIN
+// LOGIN / REGISTRO
 // -------------------------
 loginForm.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -192,9 +190,6 @@ loginForm.addEventListener("submit", (e) => {
   .catch(() => alert("Error al conectar con el servidor"));
 });
 
-// -------------------------
-// REGISTRO
-// -------------------------
 registerForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const formData = new FormData(registerForm);
