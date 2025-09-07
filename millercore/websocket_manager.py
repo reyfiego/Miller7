@@ -5,7 +5,7 @@ import random
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-app = FastAPI()
+router = APIRouter()
 
 # Simulación cliente Groq (solo para ejemplo)
 class GroqClient:

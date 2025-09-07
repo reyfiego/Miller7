@@ -6,23 +6,20 @@ from dotenv import load_dotenv
 import os, uuid
 import speech_recognition as sr
 
-# Cargar variables de entorno
+from websockets.chat import router as websocket_router  # <--- importa el router
+
 load_dotenv()
-API_KEY = os.getenv("GROQ_API_KEY")
 
-# Crear instancia de FastAPI
 app = FastAPI()
+app.include_router(websocket_router)  # <--- registra el router
 
-# Montar recursos estáticos y plantillas
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Endpoint raíz para servir HTML
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
 
-# Endpoint de audio a texto
 @app.post("/audio")
 async def audio_to_text(file: UploadFile = File(...)):
     try:
