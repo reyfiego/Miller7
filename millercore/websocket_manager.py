@@ -61,7 +61,7 @@ manager = ConnectionManager()
 # -------------------------------
 # WebSocket principal
 # -------------------------------
-@router.websocket("/ws/{session_id}")
+@router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
 
