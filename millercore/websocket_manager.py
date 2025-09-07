@@ -4,10 +4,10 @@ import asyncio
 import random
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from .burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
-from .corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
+from millercore.burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_aleatorio
+from millercore.corazon import SYSTEM_ROLE, FRASES_CONTEXTUALES, get_random_greeting
 from db import create_session, save_message, get_session_messages
-from .__init__ import groq_client, MODEL_ID
+from millercore.__init__ import groq_client, MODEL_ID
 
 router = APIRouter()   # 👈 Aquí declaramos el router
 
