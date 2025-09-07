@@ -200,6 +200,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "El silencio también tiene cosas que decir.",
                     "La vida puede sentirse como una canción rota.",
                     "El tiempo no cura todo, solo enseña a vivir con algunas cicatrices.",
+                     "A veces creo que las nubes contienen nuestros mayores deseos y esperanzas"
                 ]
                 fallback = random.choice(fallback_messages)
                 if fallback not in burbujas_enviadas.get(session_id, set()):

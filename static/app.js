@@ -212,3 +212,5 @@ registerForm.addEventListener("submit", (e) => {
   })
   .catch(() => alert("Error al conectar con el servidor"));
 });
+
+
