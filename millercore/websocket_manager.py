@@ -62,34 +62,36 @@ async def generar_mensaje_automatico(session_id: str) -> str:
 async def auto_message_loop():
     while True:
         await asyncio.sleep(5)
-        now = datetime.datetime.now()
-        for sid in list(manager.active_connections.keys()):
-            idle_time = (now - manager.user_last_active.get(sid, now)).total_seconds()
-            if idle_time < 300:  # Solo si inactivo más de 5 minutos
-                continue
+        # Función desactivada para evitar envíos automáticos
+        # now = datetime.datetime.now()
+        # for sid in list(manager.active_connections.keys()):
+        #     idle_time = (now - manager.user_last_active.get(sid, now)).total_seconds()
+        #     if idle_time < 300:  # Solo si inactivo más de 5 minutos
+        #         continue
 
-            # Control de burbujas consecutivas
-            if manager.consecutive_bubbles.get(sid, 0) >= 4:
-                continue
+        #     # Control de burbujas consecutivas
+        #     if manager.consecutive_bubbles.get(sid, 0) >= 4:
+        #         continue
 
-            # Control de tiempo entre burbujas
-            last_time = manager.last_bubble_time.get(sid, datetime.datetime.min)
-            if (now - last_time).total_seconds() < 15:
-                continue
+        #     # Control de tiempo entre burbujas
+        #     last_time = manager.last_bubble_time.get(sid, datetime.datetime.min)
+        #     if (now - last_time).total_seconds() < 15:
+        #         continue
 
-            msg = await generar_mensaje_automatico(sid)
-            if msg in manager.burbujas_enviadas[sid]:
-                continue  # No repetir mensajes
+        #     msg = await generar_mensaje_automatico(sid)
+        #     if msg in manager.burbujas_enviadas[sid]:
+        #         continue  # No repetir mensajes
 
-            websocket = manager.active_connections.get(sid)
-            if websocket:
-                print(f"[{sid}] Enviando mensaje automático: {msg}")
-                await websocket.send_text(json.dumps({"reply": [msg]}))
-                manager.last_bubble_time[sid] = datetime.datetime.now()
-                manager.consecutive_bubbles[sid] += 1
-                manager.burbujas_enviadas[sid].add(msg)
+        #     websocket = manager.active_connections.get(sid)
+        #     if websocket:
+        #         print(f"[{sid}] Enviando mensaje automático: {msg}")
+        #         await websocket.send_text(json.dumps({"reply": [msg]}))
+        #         manager.last_bubble_time[sid] = datetime.datetime.now()
+        #         manager.consecutive_bubbles[sid] += 1
+        #         manager.burbujas_enviadas[sid].add(msg)
 
-asyncio.create_task(auto_message_loop())
+# Comentamos la creación de la tarea para que no se ejecute
+# asyncio.create_task(auto_message_loop())
 
 @app.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
