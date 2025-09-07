@@ -10,9 +10,14 @@ from millercore.websocket_manager import router as websocket_router
  # <--- importa el router
 
 load_dotenv()
+API_KEY = os.getenv("GROQ_API_KEY")
+MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+if not API_KEY:
+    raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
 
 app = FastAPI()
 app.include_router(websocket_router)  # <--- registra el router
+
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
