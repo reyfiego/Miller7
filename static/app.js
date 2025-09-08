@@ -7,6 +7,9 @@ if (!sessionId) {
 
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
 
+// -------------------------
+// ELEMENTOS DOM
+// -------------------------
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
 const input = document.getElementById("prompt");
@@ -32,7 +35,7 @@ const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// FUNCIONES DE UI
+// FUNCIONES UI
 // -------------------------
 function openElement(element) {
   element.classList.add("active");
@@ -59,9 +62,15 @@ closeModal.addEventListener("click", () => closeElement(modal));
 window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
 
 // -------------------------
-// FUNCIONES DE CHAT
+// FUNCIONES CHAT
 // -------------------------
+let ws;
+let burbujasMostradas = new Set();
+
 function addBubble(sender, text) {
+  if (burbujasMostradas.has(text)) return; // Evitar duplicados
+  burbujasMostradas.add(text);
+
   const bubble = document.createElement("div");
   bubble.className = `bubble ${sender}`;
   bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
@@ -73,9 +82,6 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
 }
 
-let ws;
-let burbujasMostradas = new Set();
-
 // -------------------------
 // WEBSOCKET
 // -------------------------
@@ -83,7 +89,7 @@ function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
-  ws.onopen = () => console.log("Conectado al WebSocket");
+  ws.onopen = () => console.log("WebSocket conectado");
 
   ws.onmessage = async (event) => {
     let data;
@@ -96,33 +102,28 @@ function connectWS() {
     if (Array.isArray(data.reply)) {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        if (burbujasMostradas.has(msg)) continue;
         await delay(i === 0 ? 0 : 500);
         addBubble("ai", msg);
-        burbujasMostradas.add(msg);
       }
     }
   };
 
-  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
+  ws.onclose = () => { 
+    console.log("WebSocket cerrado. Reconectando en 3s...");
+    setTimeout(connectWS, 3000); 
+  };
   ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
 }
-connectWS();
 
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  burbujasMostradas.clear(); // limpia duplicados para nuevas respuestas
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
-    reconnectWS();
+    connectWS();
   }
-}
-
-function reconnectWS() {
-  if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
 }
 
 form.addEventListener("submit", (e) => {
@@ -162,48 +163,55 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 // -------------------------
 // LOGIN / REGISTRO
 // -------------------------
-loginForm.addEventListener("submit", (e) => {
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(loginForm);
   const email = formData.get("email").trim();
   const password = formData.get("password").trim();
-  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
+  if (!email || !password) { alert("Completa todos los campos."); return; }
 
-  fetch("/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  })
-  .then(res => res.json())
-  .then(data => {
+  try {
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
     if (data.success) {
       alert("Inicio de sesión exitoso");
       loggedIn = true;
       localStorage.setItem("miller_logged_in", "true");
       closeElement(loginPanel);
     } else alert(data.message || "Error en inicio de sesión");
-  })
-  .catch(() => alert("Error al conectar con el servidor"));
+  } catch {
+    alert("Error al conectar con el servidor");
+  }
 });
 
-registerForm.addEventListener("submit", (e) => {
+registerForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(registerForm);
   const email = formData.get("email").trim();
   const password = formData.get("password").trim();
-  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
+  if (!email || !password) { alert("Completa todos los campos."); return; }
 
-  fetch("/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  })
-  .then(res => res.json())
-  .then(data => {
+  try {
+    const res = await fetch("/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
     if (data.success) {
       alert("Registro exitoso, ya puedes iniciar sesión");
       closeElement(registerPanel);
     } else alert(data.message || "Error en registro");
-  })
-  .catch(() => alert("Error al conectar con el servidor"));
+  } catch {
+    alert("Error al conectar con el servidor");
+  }
 });
+
+// -------------------------
+// INICIAR WEBSOCKET
+// -------------------------
+connectWS();
