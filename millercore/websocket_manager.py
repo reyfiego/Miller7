@@ -23,7 +23,7 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.periodic_tasks: dict[str, asyncio.Task] = {}
-        self.burbujas_enviadas: dict[str, set[str]] = {}  # Track global por sesión
+        self.burbujas_enviadas: dict[str, set[str]] = {}
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -43,14 +43,11 @@ class ConnectionManager:
         websocket = self.active_connections.get(session_id)
         if websocket:
             try:
+                # Marca cada burbuja con el origen [ws]
                 if "reply" in message:
-                    nuevas_burbujas = []
-                    for b in message["reply"]:
-                        if b not in self.burbujas_enviadas[session_id]:
-                            nuevas_burbujas.append(f"[ws] {b}")
-                            self.burbujas_enviadas[session_id].add(b)
-                    if nuevas_burbujas:
-                        await websocket.send_json({"reply": nuevas_burbujas, "session_id": session_id})
+                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
+                    self.burbujas_enviadas[session_id].update(message["reply"])
+                await websocket.send_json(message)
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
@@ -62,12 +59,10 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
 
-    # Saludo inicial solo si no hay burbujas enviadas aún
-    if not manager.burbujas_enviadas[session_id]:
-        saludo = get_random_greeting()
-        if saludo:
-            manager.burbujas_enviadas[session_id].add(saludo)
-            await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
+    # Enviar saludo inicial
+    saludo = get_random_greeting()
+    if saludo:
+        await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
         while True:
@@ -75,13 +70,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             user_text = data.get("message", "").strip()
             if not user_text:
                 await manager.send_personal_message(
-                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, session_id
+                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id},
+                    session_id
                 )
                 continue
 
             create_session(session_id)
             history = get_session_messages(session_id) or []
             history.append({"role": "user", "content": user_text})
+
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             messages_for_groq = system_messages + [{"role": "user", "content": user_text}]
 
@@ -100,10 +97,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                # Generar burbujas y enriquecimiento, sin duplicados
-                burbujas = dividir_burbujas_aleatorio(reply_text)
                 burbujas = enriquecer_burbujas_contextual(
-                    burbujas,
+                    dividir_burbujas_aleatorio(reply_text),
                     contexto=user_text,
                     burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
                 )
@@ -115,16 +110,13 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
-                burbujas = dividir_burbujas_aleatorio(fallback_msg)
                 burbujas = enriquecer_burbujas_contextual(
-                    burbujas,
+                    dividir_burbujas_aleatorio(fallback_msg),
                     contexto=user_text,
                     burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
                 )
                 for b in burbujas:
-                    await manager.send_personal_message(
-                        {"reply": [b], "session_id": session_id, "error": "fallback"}, session_id
-                    )
+                    await manager.send_personal_message({"reply": [b], "session_id": session_id, "error": "fallback"}, session_id)
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
