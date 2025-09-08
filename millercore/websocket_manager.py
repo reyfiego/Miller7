@@ -4,7 +4,7 @@ import random
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual
-from .corazon import SYSTEM_ROLE
+from .corazon import SYSTEM_ROLE, get_random_greeting
 from db import create_session, save_message, get_session_messages
 from dotenv import load_dotenv
 
@@ -17,7 +17,6 @@ if not API_KEY:
 
 groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
-
 
 class ConnectionManager:
     def __init__(self):
@@ -40,37 +39,38 @@ class ConnectionManager:
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
-
 manager = ConnectionManager()
-
 
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
 
+    # Nota: He quitado el saludo inicial del back-end
+    # El front-end debe enviar un primer mensaje de bienvenida
+    # para evitar que la IA envíe dos respuestas a la primera interacción del usuario.
+
     try:
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
-            
-            # Si el mensaje proviene del sistema (saludo inicial del front-end), no procesar con la IA
-            if data.get("from") == "system":
-                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(user_text), contexto=user_text)
-                await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
-                continue
 
+            # Evita procesar mensajes vacíos
             if not user_text:
                 await manager.send_personal_message({"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, session_id)
                 continue
 
+            # Crea la sesión y recupera el historial
             create_session(session_id)
             history = get_session_messages(session_id) or []
             
-            messages_for_groq = history + [{"role": "user", "content": user_text}]
-            system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            messages_for_groq = system_messages + messages_for_groq
+            # Agrega el mensaje del usuario al historial para la llamada a la API
+            history.append({"role": "user", "content": user_text})
+            
+            # Prepara los mensajes para Groq, incluyendo todo el historial
+            messages_for_groq = [{"role": "system", "content": SYSTEM_ROLE}] + history
 
             try:
+                # Generación de la respuesta principal
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
                     messages=messages_for_groq,
@@ -82,16 +82,25 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
+                # Guarda la respuesta en la base de datos
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text), contexto=user_text)
+                # Divide la respuesta en burbujas y las enriquece
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=history
+                )
+                
+                # Envía todas las burbujas de una vez al front-end
+                # El front-end se encargará de mostrarlas una por una
                 await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
 
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
+                # Manejo de fallas
                 fallback_msg = "El silencio también tiene cosas que decir."
-                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(fallback_msg), contexto=user_text)
+                burbujas = dividir_burbujas_aleatorio(fallback_msg)
                 await manager.send_personal_message({"reply": burbujas, "session_id": session_id, "error": "fallback"}, session_id)
 
     except WebSocketDisconnect:
