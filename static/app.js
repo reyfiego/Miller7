@@ -1,5 +1,4 @@
-// Código de tu front-end
-const SESSION_KEY = "miller_session_id";
+const SESSION_KEY = "miller_session_id"; 
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
   sessionId = crypto.randomUUID();
@@ -14,7 +13,7 @@ const input = document.getElementById("prompt");
 const micBtn = document.getElementById("mic-btn");
 const overlay = document.getElementById("voice-overlay");
 const confirmBtn = document.getElementById("confirm");
-const cancelBtn = document.getElementById("cancel");
+const cancelBtn = document = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
 const infoBtn = document.getElementById("info-btn");
@@ -26,7 +25,7 @@ const registerBtn = document.getElementById("register-btn");
 const loginPanel = document.getElementById("login-panel");
 const registerPanel = document.getElementById("register-panel");
 const closeLogin = document.getElementById("close-login");
-const closeRegister = document = document.getElementById("close-register");
+const closeRegister = document.getElementById("close-register");
 const panelOverlay = document.getElementById("panel-overlay");
 
 const loginForm = document.getElementById("login-form");
@@ -75,17 +74,28 @@ function escapeHtml(str) {
 }
 
 let ws;
-// **CORRECCIÓN 1: Eliminar la variable `burbujasMostradas`**
-// let burbujasMostradas = new Set();
 
 // -------------------------
 // WEBSOCKET
 // -------------------------
+function getWelcomeMessage() {
+  const messages = [
+    "Hola, ¿en qué puedo ayudarte?",
+    "¡Hola! ¿Qué tal?",
+    "Hola, me alegro de verte.",
+    "Hola, ¿cómo estás?",
+  ];
+  return messages[Math.floor(Math.random() * messages.length)];
+}
+
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
-  ws.onopen = () => console.log("Conectado al WebSocket");
+  ws.onopen = () => {
+    console.log("Conectado al WebSocket");
+    ws.send(JSON.stringify({ from: "system", message: getWelcomeMessage() }));
+  };
 
   ws.onmessage = async (event) => {
     let data;
@@ -96,10 +106,9 @@ function connectWS() {
     }
 
     if (Array.isArray(data.reply)) {
-      // **CORRECCIÓN 2: Lógica de burbujas simplificada**
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        await delay(500); // Retraso entre burbujas para un efecto más natural
+        await delay(500); 
         addBubble("ai", msg);
       }
     }
@@ -113,8 +122,6 @@ connectWS();
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  // **CORRECCIÓN 3: Eliminar la limpieza del set**
-  // burbujasMostradas.clear(); 
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
   } else {

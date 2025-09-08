@@ -1,124 +1,118 @@
-import random
-import re
-from groq import Groq
-from dotenv import load_dotenv
 import os
+import asyncio
+import random
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from groq import Groq
+from .burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_contextual
+from .corazon import SYSTEM_ROLE, get_random_greeting
+from db import create_session, save_message, get_session_messages
+from dotenv import load_dotenv
 
-# -------------------------------
-# Configuración inicial
-# -------------------------------
 load_dotenv()
+
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-
 if not API_KEY:
-    print("⚠️ Advertencia: No se encontró GROQ_API_KEY en el entorno. Algunas funciones no funcionarán.")
-    groq_client = None
-else:
-    groq_client = Groq(api_key=API_KEY)
+    raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
 
+groq_client = Groq(api_key=API_KEY)
+router = APIRouter()
 
-# -------------------------------
-# Funciones
-# -------------------------------
-def dividir_burbujas_aleatorio(texto: str, max_len: int = 120) -> list[str]:
-    """
-    Divide el texto en burbujas (frases cortas) usando puntuación, azar y longitud máxima.
-    """
-    texto = texto.replace("...", "…")
-    frases = re.split(r'(?<=[.?!…])\s+', texto)
-    burbujas, temp = [], ""
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}
+        self.burbujas_enviadas: dict[str, set[str]] = {}
 
-    for frase in frases:
-        if random.random() < 0.5 or frase.endswith("?") or len(temp) + len(frase) > max_len:
-            if temp:
-                burbujas.append(temp.strip())
-            temp = frase
-        else:
-            temp = (temp + " " + frase).strip()
+    async def connect(self, websocket: WebSocket, session_id: str):
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+        self.burbujas_enviadas[session_id] = set()
+        print(f"[{session_id}] Conectado")
 
-    if temp:
-        burbujas.append(temp.strip())
+    def disconnect(self, session_id: str):
+        self.active_connections.pop(session_id, None)
+        self.burbujas_enviadas.pop(session_id, None)
+        print(f"[{session_id}] Desconectado")
 
-    return burbujas
+    async def send_personal_message(self, message: dict, session_id: str):
+        websocket = self.active_connections.get(session_id)
+        if websocket:
+            try:
+                # Marca cada burbuja con el origen
+                if "reply" in message:
+                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
+                    self.burbujas_enviadas[session_id].update(message["reply"])
+                await websocket.send_json(message)
+            except Exception as e:
+                print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
+manager = ConnectionManager()
 
-def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
-    """
-    Verifica si alguna frase del contexto aparece en el mensaje.
-    """
-    mensaje_lower = mensaje.lower()
-    for frase in contexto:
-        if frase.lower() in mensaje_lower:
-            return True
-    return False
+@router.websocket("/ws/chat/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    await manager.connect(websocket, session_id)
 
+    saludo = get_random_greeting()
+    if saludo:
+        await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
-def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
-    """
-    Genera una frase corta y coherente con el contexto usando Groq.
-    """
-    if not groq_client:
-        return ""
-
-    prompt = f"""
-Eres un asistente empático y humano.
-Usuario: {contexto}
-Responde con una frase corta y coherente que continúe la conversación.
-No uses más de 20 palabras.
-"""
     try:
-        respuesta = groq_client.chat.completions.create(
-            model=MODEL_ID,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=50,
-            temperature=0.9
-        )
-        mensaje = respuesta.choices[0].message
-        if isinstance(mensaje, dict):
-            return mensaje.get("content", "").strip()
-        elif hasattr(mensaje, "content"):
-            return mensaje.content.strip()
-        else:
-            return ""
+        while True:
+            data = await websocket.receive_json()
+            user_text = data.get("message", "").strip()
+            if not user_text:
+                await manager.send_personal_message({"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, session_id)
+                continue
+
+            # Crear sesión si no existe
+            create_session(session_id)
+            history = get_session_messages(session_id) or []
+
+            # Guardamos el mensaje del usuario
+            save_message(session_id, "user", user_text)
+            history.append({"role": "user", "content": user_text})
+
+            # Preparamos los mensajes para Groq: SYSTEM + todo el historial
+            messages_for_groq = [{"role": "system", "content": SYSTEM_ROLE}] + history
+
+            try:
+                response = groq_client.chat.completions.create(
+                    model=MODEL_ID,
+                    messages=messages_for_groq,
+                    max_tokens=250,
+                    temperature=0.9,
+                    top_p=0.95,
+                    frequency_penalty=0.8,
+                    presence_penalty=0.9
+                )
+                reply_text = response.choices[0].message.content.strip()
+                save_message(session_id, "assistant", reply_text)
+
+                # Dividimos en burbujas y enriquecemos según el historial
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(reply_text),
+                    contexto=history,
+                    burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
+                )
+
+                # Enviamos las burbujas de una en una
+                for b in burbujas:
+                    await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
+                    await asyncio.sleep(random.uniform(0.5, 1.2))
+
+            except Exception as e:
+                print(f"[{session_id}] Error en chat:", repr(e))
+                fallback_msg = "El silencio también tiene cosas que decir."
+                burbujas = enriquecer_burbujas_contextual(
+                    dividir_burbujas_aleatorio(fallback_msg),
+                    contexto=history,
+                    burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
+                )
+                for b in burbujas:
+                    await manager.send_personal_message({"reply": [b], "session_id": session_id, "error": "fallback"}, session_id)
+
+    except WebSocketDisconnect:
+        manager.disconnect(session_id)
     except Exception as e:
-        print("⚠️ Error generando frase contextual con Groq:", e)
-        return ""
-
-
-def enriquecer_burbujas_contextual(
-    burbujas: list[str],
-    contexto: str | list[str],
-    groq_client=groq_client,
-    max_burbujas: int = 5,
-    burbujas_enviadas_global: set | None = None  # <-- opcional
-) -> list[str]:
-    """
-    Añade frases contextuales a las burbujas, evitando duplicados globales si se proporciona un set.
-    """
-    if burbujas_enviadas_global is None:
-        burbujas_enviadas_global = set()
-
-    # Convertir contexto a string si viene en lista
-    if isinstance(contexto, list):
-        contexto = " ".join([m.get("content", "") if isinstance(m, dict) else str(m) for m in contexto])
-
-    resultado = []
-
-    for b in burbujas:
-        b = re.sub(r'…{2,}$', '…', b.strip())
-        if b and b not in burbujas_enviadas_global:
-            resultado.append(b)
-            burbujas_enviadas_global.add(b)
-
-        # 40% de probabilidad de añadir frase contextual
-        if random.random() < 0.4 and not b.endswith("?") and len(resultado) < max_burbujas:
-            frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
-            if frase_contextual and frase_contextual not in burbujas_enviadas_global:
-                resultado.append(frase_contextual)
-                burbujas_enviadas_global.add(frase_contextual)
-
-        if len(resultado) >= max_burbujas:
-            break
-
-    return resultado[:max_burbujas]
+        print(f"[{session_id}] Error general websocket:", repr(e))
+        manager.disconnect(session_id)
