@@ -3,7 +3,7 @@ import asyncio
 import random
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
-from .burbujas_texto import dividir_burbujas_aleatorio, enriquecer_burbujas_sin_contexto
+from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
 from db import create_session, save_message, get_session_messages
 from dotenv import load_dotenv
@@ -39,8 +39,8 @@ class ConnectionManager:
         websocket = self.active_connections.get(session_id)
         if websocket:
             try:
+                # Marca cada burbuja con el origen
                 if "reply" in message:
-                    # Marca cada burbuja con el origen
                     message["reply"] = [f"[ws] {b}" for b in message["reply"]]
                     self.burbujas_enviadas[session_id].update(message["reply"])
                 await websocket.send_json(message)
@@ -49,6 +49,15 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+async def enviar_burbujas_con_delay(burbujas, session_id):
+    """Envía burbujas al WebSocket con delay aleatorio entre 1 y 10 segundos."""
+    for b in burbujas:
+        if b not in manager.burbujas_enviadas[session_id]:
+            await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
+            delay = random.uniform(1, 10)
+            await asyncio.sleep(delay)
 
 
 @router.websocket("/ws/chat/{session_id}")
@@ -64,15 +73,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
             if not user_text:
-                await manager.send_personal_message(
-                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, 
-                    session_id
-                )
+                await manager.send_personal_message({"reply": ["Por favor, dime algo para responderte."], "session_id": session_id}, session_id)
                 continue
 
             create_session(session_id)
-            save_message(session_id, "user", user_text)
-
+            history = get_session_messages(session_id) or []
+            history.append({"role": "user", "content": user_text})
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             messages_for_groq = system_messages + [{"role": "user", "content": user_text}]
 
@@ -87,29 +93,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     presence_penalty=0.9
                 )
                 reply_text = response.choices[0].message.content.strip()
+
+                save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                # Manejo de burbujas sin generar frases adicionales
-                burbujas = enriquecer_burbujas_sin_contexto(
-                    dividir_burbujas_aleatorio(reply_text),
-                    burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
-                )
-
-                for b in burbujas:
-                    await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
-                    await asyncio.sleep(random.uniform(0.5, 1.2))
+                burbujas = dividir_burbujas_aleatorio(reply_text)
+                await enviar_burbujas_con_delay(burbujas, session_id)
 
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
-                burbujas = enriquecer_burbujas_sin_contexto(
-                    dividir_burbujas_aleatorio(fallback_msg),
-                    burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
-                )
-                for b in burbujas:
-                    await manager.send_personal_message(
-                        {"reply": [b], "session_id": session_id, "error": "fallback"}, session_id
-                    )
+                burbujas = dividir_burbujas_aleatorio(fallback_msg)
+                await enviar_burbujas_con_delay(burbujas, session_id)
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
