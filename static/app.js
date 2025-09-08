@@ -31,26 +31,23 @@ const panelOverlay = document.getElementById("panel-overlay");
 const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
-// Funciones de UI
+// -------------------------
+// FUNCIONES DE UI
+// -------------------------
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
-  if (element === loginPanel || element === registerPanel) {
-    panelOverlay.classList.add("active");
-  }
+  if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
 }
 
 function closeElement(element) {
   element.classList.add("closing");
   setTimeout(() => {
     element.classList.remove("active", "closing");
-    if (element === loginPanel || element === registerPanel) {
-      panelOverlay.classList.remove("active");
-    }
+    if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
   }, 300);
 }
 
-// Event listeners UI
 loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
 registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
 closeLogin.addEventListener("click", () => closeElement(loginPanel));
@@ -96,12 +93,11 @@ function connectWS() {
       data = { reply: [event.data] }; 
     }
 
-    // data.reply siempre es un array
     if (Array.isArray(data.reply)) {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
         if (burbujasMostradas.has(msg)) continue;
-        if (i !== 0) await delay(500); // delay entre burbujas
+        await delay(i === 0 ? 0 : 500);
         addBubble("ai", msg);
         burbujasMostradas.add(msg);
       }
@@ -116,7 +112,7 @@ connectWS();
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  burbujasMostradas.clear(); // Limpia para nuevas respuestas
+  burbujasMostradas.clear(); // limpia duplicados para nuevas respuestas
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
   } else {

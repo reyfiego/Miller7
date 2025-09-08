@@ -12,10 +12,13 @@ load_dotenv()
 
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
-if not API_KEY:
-    raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
 
-groq_client = Groq(api_key=API_KEY)
+if not API_KEY:
+    print("⚠️ No se encontró GROQ_API_KEY. Los mensajes contextuales no se generarán.")
+    groq_client = None
+else:
+    groq_client = Groq(api_key=API_KEY)
+
 router = APIRouter()
 
 
@@ -65,20 +68,24 @@ async def enviar_mensajes_periodicos(session_id: str):
             messages_for_groq = system_messages + [{"role": "user", "content": contexto}]
 
             try:
-                response = groq_client.chat.completions.create(
-                    model=MODEL_ID,
-                    messages=messages_for_groq,
-                    max_tokens=150,
-                    temperature=0.9,
-                    top_p=0.95,
-                    frequency_penalty=0.8,
-                    presence_penalty=0.9
-                )
-                reply_text = response.choices[0].message.content.strip()
+                if groq_client:
+                    response = groq_client.chat.completions.create(
+                        model=MODEL_ID,
+                        messages=messages_for_groq,
+                        max_tokens=150,
+                        temperature=0.9,
+                        top_p=0.95,
+                        frequency_penalty=0.8,
+                        presence_penalty=0.9
+                    )
+                    reply_text = response.choices[0].message.get("content", "").strip()
+                else:
+                    reply_text = "…"
 
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
-                    contexto=contexto
+                    contexto=contexto,
+                    groq_client=groq_client
                 )
 
                 burbujas_mostradas: set[str] = set()
@@ -128,30 +135,32 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 continue
 
             create_session(session_id)
+            save_message(session_id, "user", user_text)
             history = get_session_messages(session_id) or []
-            history.append({"role": "user", "content": user_text})
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-
             messages_for_groq = system_messages + [{"role": "user", "content": user_text}]
 
             try:
-                response = groq_client.chat.completions.create(
-                    model=MODEL_ID,
-                    messages=messages_for_groq,
-                    max_tokens=250,
-                    temperature=0.9,
-                    top_p=0.95,
-                    frequency_penalty=0.8,
-                    presence_penalty=0.9
-                )
-                reply_text = response.choices[0].message.content.strip()
+                if groq_client:
+                    response = groq_client.chat.completions.create(
+                        model=MODEL_ID,
+                        messages=messages_for_groq,
+                        max_tokens=250,
+                        temperature=0.9,
+                        top_p=0.95,
+                        frequency_penalty=0.8,
+                        presence_penalty=0.9
+                    )
+                    reply_text = response.choices[0].message.get("content", "").strip()
+                else:
+                    reply_text = "…"
 
-                save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
-                    contexto=user_text
+                    contexto=user_text,
+                    groq_client=groq_client
                 )
 
                 for b in burbujas:
@@ -167,7 +176,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 fallback_msg = "El silencio también tiene cosas que decir."
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(fallback_msg),
-                    contexto=user_text
+                    contexto=user_text,
+                    groq_client=groq_client
                 )
                 for b in burbujas:
                     if b not in burbujas_mostradas:
