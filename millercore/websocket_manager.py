@@ -4,7 +4,7 @@ import random
 import asyncio
 from fastapi import WebSocket
 from groq import Groq
-from corazon import SYSTEM_ROLE  # Usamos solo el rol sistema
+from .corazon import SYSTEM_ROLE  # Usamos solo el rol sistema
 
 logger = logging.getLogger("uvicorn")
 
