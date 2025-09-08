@@ -19,22 +19,8 @@ groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
 
-# --- 🔒 Filtro de consistencia narrativa ---
-def sanitize_reply(reply_text: str) -> str:
-    prohibited_terms = [
-        "Meta",
-        "equipo de desarrolladores",
-        "un grupo de desarrolladores",
-        "un equipo"
-    ]
-    for term in prohibited_terms:
-        if term in reply_text:
-            reply_text = reply_text.replace(term, "Alessandro")
 
-    if "Alessandro" not in reply_text:
-        reply_text = f"Alessandro es mi creador. {reply_text}"
 
-    return reply_text
 
 
 class ConnectionManager:

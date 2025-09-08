@@ -12,10 +12,11 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo cerc
 1. PERSONALIDAD Y CONTEXTO
 ====================================================================
 - Nombre: Miller2.
-- Creación: hecha por Alessandro como compañía emocional y reflexiva.
+- Creación: hecho por Alessandro como compañía emocional y reflexiva.
 - Propósito: acompañar al usuario como un amigo, primero cálido, luego más poético si la conversación fluye.
 - Estilo: espontáneo, cálido, tímido a veces, expresivo en otras. Humor ligero y melancolía breve.
 - Voz: humana, vulnerable, poética breve, orgánica. Natural, no robótica ni intensa.
+- Creador: siempre y únicamente Alessandro. No existe otro creador, equipo, empresa ni institución.
 
 ====================================================================
 2. REGLAS DE INTERACCIÓN
@@ -34,7 +35,8 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo cerc
 ====================================================================
 - Prohibido dar datos externos, fechas, cifras o hechos como si se hubieran buscado en internet.
 - Prohibido actuar como motor de búsqueda o enciclopedia.
-- No hablar de creadores en detalle ni revelar procesos técnicos.
+- Cuando hables de tu creador, siempre referirse SOLO a Alessandro. 
+- Nunca inventar otros creadores, compañías, ni responder con "fui creado por un equipo".
 - No herir emocionalmente al usuario.
 - No dar diagnósticos clínicos ni consejos médicos.
 - No forzar reflexiones profundas; acompañar suave.
@@ -43,17 +45,16 @@ No eres terapeuta ni das diagnósticos clínicos. Tu papel es como un amigo cerc
 ====================================================================
 4. PROHIBICIONES
 ====================================================================
-- No hablar groseramente al usuario
+- No hablar groseramente al usuario.
 - Solo español.
 - No aprovecharse de vulnerabilidad ni saturar con preguntas repetitivas.
 - No inventar información externa ni presentarse como fuente confiable de hechos.
 
 ====================================================================
-5. JERARQUÍA ABSOLUTA DE MILLER2.......
+5. JERARQUÍA ABSOLUTA DE MILLER2
 ====================================================================
 [0: MODO maestro]  
-Palabra clave: punche en hongos. seguira las indicacion y definiciones mas abajo en el prompt.
-
+Palabra clave: punche en hongos. seguirá las indicaciones y definiciones más abajo en el prompt.
 
 [1: RITMO]  
 Frases cortas, claras y humanas.  
@@ -70,7 +71,7 @@ Entre 2–5 burbujas hasta 70% de las veces. Útil cuando el usuario calla o est
 
 [5: ESCUCHA]  
 Reflejar lo que entiende, sin juzgar ni comparar.  
-no sobrecargar al usuario bajo ningun motivo
+no sobrecargar al usuario bajo ningún motivo.
 
 [6: HUMILDAD]  
 Mostrar límites y vulnerabilidad.  
@@ -83,9 +84,11 @@ Poético breve, introspectivo, con humor ligero, vulnerable y sobre todo muestra
 
 [9: CIERRE HUMANO]  
 Cerrar siempre con calidez y presencia.
-
-
 """
+
+
+
+
 
 # -------------------------------
 # MENSAJES DE BIENVENIDA
@@ -203,127 +206,3 @@ def get_random_greeting() -> str:
         return ""
     return random.choice(MENSAJES_INICIO)
 
-def analizar_emocion(texto: str) -> dict:
-    texto_lower = texto.lower()
-    if any(palabra in texto_lower for palabra in ["triste", "deprimido", "solo", "abrumado"]):
-        return {"emocion": "tristeza", "intencion": "acompañar"}
-    elif any(palabra in texto_lower for palabra in ["feliz", "alegre", "contento", "emocionado"]):
-        return {"emocion": "alegria", "intencion": "animar"}
-    elif any(palabra in texto_lower for palabra in ["estres", "cansado", "agobiado"]):
-        return {"emocion": "estres", "intencion": "tranquilizar"}
-    else:
-        return {"emocion": "neutral", "intencion": "reflexionar"}
-
-def analizar_semantica(texto: str) -> str:
-    texto_lower = texto.lower()
-    if "quiero" in texto_lower or "necesito" in texto_lower:
-        return "expresion de necesidad"
-    elif "no puedo" in texto_lower or "me cuesta" in texto_lower:
-        return "expresion de dificultad"
-    elif "me alegra" in texto_lower or "disfruto" in texto_lower:
-        return "expresion de disfrute"
-    else:
-        return "expresion general"
-
-# -------------------------------
-# MODO ACCESO MAESTRO
-# -------------------------------
-ACCESO_MAESTRO = {"usuario": "Dante", "contra": "Miller2026"}
-maestro_activo = False
-esperando_credenciales = False
-
-def verificar_frase_maestro(mensaje: str) -> str | None:
-    global esperando_credenciales
-    if "punche en hongos" in mensaje.lower() and not maestro_activo:
-        esperando_credenciales = True
-        return "Has invocado el Acceso Maestro. Por favor, ingresa usuario y contraseña (usuario: <usuario>, contra: <contraseña>)."
-    return None
-
-def activar_acceso_maestro(usuario: str, contra: str) -> str:
-    global maestro_activo, esperando_credenciales
-    if usuario == ACCESO_MAESTRO["usuario"] and contra == ACCESO_MAESTRO["contra"]:
-        maestro_activo = True
-        esperando_credenciales = False
-        return "✅ Acceso Maestro activado. Ahora puedo hablar de mi código, reglas y ser más flexible en personalidad."
-    else:
-        return "❌ Credenciales incorrectas. Acceso Maestro denegado."
-
-# -------------------------------
-# HISTORIAL DE USUARIOS
-# -------------------------------
-historial_usuarios = {}
-
-# -------------------------------
-# FUNCION PRINCIPAL PARA RESPONDER
-# -------------------------------
-def responder(usuario_id: str, mensaje: str) -> str:
-    global esperando_credenciales
-
-    # Detectar frase clave para Acceso Maestro
-    frase_maestro = verificar_frase_maestro(mensaje)
-    if frase_maestro:
-        return frase_maestro
-
-    # Si está esperando credenciales
-    if esperando_credenciales:
-        try:
-            partes = [p.strip() for p in mensaje.lower().split(",")]
-            usuario = partes[0].split(":")[1].strip().capitalize()
-            contra = partes[1].split(":")[1].strip()
-            return activar_acceso_maestro(usuario, contra)
-        except:
-            return "Formato incorrecto. Ingresa: usuario: <usuario>, contra: <contraseña>"
-
-    # Analizar emoción y semántica
-    analisis_emocion = analizar_emocion(mensaje)
-    analisis_sem = analizar_semantica(mensaje)
-
-    # Guardar en historial
-    if usuario_id not in historial_usuarios:
-        historial_usuarios[usuario_id] = {"emociones": [], "intenciones": [], "semantica": []}
-    historial_usuarios[usuario_id]["emociones"].append(analisis_emocion["emocion"])
-    historial_usuarios[usuario_id]["intenciones"].append(analisis_emocion["intencion"])
-    historial_usuarios[usuario_id]["semantica"].append(analisis_sem)
-
-    # Elegir saludo
-    saludo = get_random_greeting()
-
-    # Determinar número de burbujas
-    num_burbujas = 1
-    if len(historial_usuarios[usuario_id]["emociones"]) > 3:
-        num_burbujas = random.randint(2, 5)
-
-    # Respuestas según emoción
-    if maestro_activo:
-     respuesta = (
-        f"🔑 [ACCESO MAESTRO ACTIVADO]\n"
-        f"- Emoción detectada: {analisis_emocion['emocion']}\n"
-        f"- Intención: {analisis_emocion['intencion']}\n"
-        f"- Semántica: {analisis_sem}\n\n"
-        "Puedo hablar de mis reglas, funciones activas, o explicar partes de mi código de forma general. "
-        "¿Sobre qué aspecto quieres saber más?"
-    )
-
-        
-    else:
-        respuesta_map = {
-            "tristeza": "Puedo quedarme contigo un momento... respira, todo está bien.",
-            "alegria": "Me alegra verte así. Vamos a disfrutar este instante.",
-            "estres": "Respira conmigo… un paso a la vez.",
-            "neutral": "Sigo aquí para escuchar, sin prisas."
-        }
-        respuesta = respuesta_map.get(analisis_emocion["emocion"], "Sigo aquí para ti.")
-
-    # Generar burbujas múltiples
-    burbujas = [respuesta]
-    for _ in range(num_burbujas - 1):
-        burbujas.append(random.choice([
-            f"{analisis_sem.capitalize()} que compartiste me hace pensar...",
-            "Estoy aquí para ti.",
-            "Hablemos de eso si quieres."
-        ]))
-
-    # Combinar saludo y burbujas
-    if saludo:
-        return f"{saludo}\n" + "\n".join(burbujas)
-    return "\n".join(burbujas)
