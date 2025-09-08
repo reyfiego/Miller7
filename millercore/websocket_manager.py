@@ -85,7 +85,8 @@ async def enviar_mensajes_periodicos(session_id: str):
                 for b in burbujas:
                     if b not in burbujas_mostradas:
                         await manager.send_personal_message(
-                            {"reply": [b], "session_id": session_id}, session_id
+                            {"reply": [b], "session_id": session_id, "source": "periodic"},
+                            session_id
                         )
                         burbujas_mostradas.add(b)
                         await asyncio.sleep(random.uniform(0.5, 1.2))
@@ -109,7 +110,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     saludo = get_random_greeting()
     if saludo:
         await manager.send_personal_message(
-            {"reply": [saludo], "session_id": session_id}, session_id
+            {"reply": [saludo], "session_id": session_id, "source": "saludo"},
+            session_id
         )
 
     # 🚨 DESHABILITADO TEMPORALMENTE
@@ -122,7 +124,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             user_text = data.get("message", "").strip()
             if not user_text:
                 await manager.send_personal_message(
-                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id},
+                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id, "source": "empty_input"},
                     session_id
                 )
                 continue
@@ -157,7 +159,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 for b in burbujas:
                     if b not in burbujas_mostradas:
                         await manager.send_personal_message(
-                            {"reply": [b], "session_id": session_id}, session_id
+                            {"reply": [b], "session_id": session_id, "source": "grog"},
+                            session_id
                         )
                         burbujas_mostradas.add(b)
                         await asyncio.sleep(random.uniform(0.5, 1.2))
@@ -172,7 +175,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 for b in burbujas:
                     if b not in burbujas_mostradas:
                         await manager.send_personal_message(
-                            {"reply": [b], "session_id": session_id, "error": "fallback"}, session_id
+                            {"reply": [b], "session_id": session_id, "source": "fallback"},
+                            session_id
                         )
                         burbujas_mostradas.add(b)
 
