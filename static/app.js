@@ -1,4 +1,5 @@
-const SESSION_KEY = "miller_session_id"; 
+// Código de tu front-end
+const SESSION_KEY = "miller_session_id";
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
   sessionId = crypto.randomUUID();
@@ -25,7 +26,7 @@ const registerBtn = document.getElementById("register-btn");
 const loginPanel = document.getElementById("login-panel");
 const registerPanel = document.getElementById("register-panel");
 const closeLogin = document.getElementById("close-login");
-const closeRegister = document.getElementById("close-register");
+const closeRegister = document = document.getElementById("close-register");
 const panelOverlay = document.getElementById("panel-overlay");
 
 const loginForm = document.getElementById("login-form");
@@ -74,7 +75,8 @@ function escapeHtml(str) {
 }
 
 let ws;
-let burbujasMostradas = new Set();
+// **CORRECCIÓN 1: Eliminar la variable `burbujasMostradas`**
+// let burbujasMostradas = new Set();
 
 // -------------------------
 // WEBSOCKET
@@ -87,19 +89,18 @@ function connectWS() {
 
   ws.onmessage = async (event) => {
     let data;
-    try { 
-      data = JSON.parse(event.data); 
-    } catch { 
-      data = { reply: [event.data] }; 
+    try {
+      data = JSON.parse(event.data);
+    } catch {
+      data = { reply: [event.data] };
     }
 
     if (Array.isArray(data.reply)) {
+      // **CORRECCIÓN 2: Lógica de burbujas simplificada**
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        if (burbujasMostradas.has(msg)) continue;
-        await delay(i === 0 ? 0 : 500);
+        await delay(500); // Retraso entre burbujas para un efecto más natural
         addBubble("ai", msg);
-        burbujasMostradas.add(msg);
       }
     }
   };
@@ -112,7 +113,8 @@ connectWS();
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  burbujasMostradas.clear(); // limpia duplicados para nuevas respuestas
+  // **CORRECCIÓN 3: Eliminar la limpieza del set**
+  // burbujasMostradas.clear(); 
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
   } else {

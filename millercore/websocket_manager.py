@@ -22,28 +22,20 @@ router = APIRouter()
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
-        self.burbujas_enviadas: dict[str, set[str]] = {}  # Burbuja únicas por sesión
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
         self.active_connections[session_id] = websocket
-        self.burbujas_enviadas[session_id] = set()
         print(f"[{session_id}] Conectado")
 
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
-        self.burbujas_enviadas.pop(session_id, None)
         print(f"[{session_id}] Desconectado")
 
     async def send_personal_message(self, message: dict, session_id: str):
         websocket = self.active_connections.get(session_id)
         if websocket:
             try:
-                if "reply" in message:
-                    # Evitar duplicados y marcar el origen
-                    nuevas_burbujas = [f"[ws] {b}" for b in message["reply"] if b not in self.burbujas_enviadas[session_id]]
-                    self.burbujas_enviadas[session_id].update(nuevas_burbujas)
-                    message["reply"] = nuevas_burbujas
                 await websocket.send_json(message)
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
@@ -59,6 +51,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
+        # Nota: La lógica de burbujas en el front-end es más eficiente
+        # No es necesario dividir el saludo en varias burbujas
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
@@ -71,12 +65,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             create_session(session_id)
             history = get_session_messages(session_id) or []
-            history.append({"role": "user", "content": user_text})
+            
+            # **CORRECCIÓN 1: Enviar el historial completo a la IA**
+            # Añadir el mensaje del usuario al historial para la llamada a la API
+            messages_for_groq = history + [{"role": "user", "content": user_text}]
+            
+            # Añadir el rol del sistema al inicio
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            messages_for_groq = system_messages + [{"role": "user", "content": user_text}]
+            messages_for_groq = system_messages + messages_for_groq
 
             try:
-                # Generación principal
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
                     messages=messages_for_groq,
@@ -91,19 +89,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                # Generar burbujas (sin duplicados, manejado en manager)
+                # **CORRECCIÓN 2: Lógica de envío simplificada**
+                # Enviar todas las burbujas de una vez
                 burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text), contexto=user_text)
-
-                for b in burbujas:
-                    await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
-                    await asyncio.sleep(random.uniform(0.5, 1.2))
+                await manager.send_personal_message({"reply": burbujas, "session_id": session_id}, session_id)
 
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
                 burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(fallback_msg), contexto=user_text)
-                for b in burbujas:
-                    await manager.send_personal_message({"reply": [b], "session_id": session_id, "error": "fallback"}, session_id)
+                await manager.send_personal_message({"reply": burbujas, "session_id": session_id, "error": "fallback"}, session_id)
 
     except WebSocketDisconnect:
         manager.disconnect(session_id)
