@@ -22,8 +22,7 @@ router = APIRouter()
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
-        self.periodic_tasks: dict[str, asyncio.Task] = {}
-        self.burbujas_enviadas: dict[str, set[str]] = {}  # <<< Track global por sesión
+        self.burbujas_enviadas: dict[str, set[str]] = {}  # Burbuja únicas por sesión
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -33,20 +32,18 @@ class ConnectionManager:
 
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
-        task = self.periodic_tasks.pop(session_id, None)
         self.burbujas_enviadas.pop(session_id, None)
-        if task:
-            task.cancel()
         print(f"[{session_id}] Desconectado")
 
     async def send_personal_message(self, message: dict, session_id: str):
         websocket = self.active_connections.get(session_id)
         if websocket:
             try:
-                # Marca cada burbuja con el origen
                 if "reply" in message:
-                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
-                    self.burbujas_enviadas[session_id].update(message["reply"])
+                    # Evitar duplicados y marcar el origen
+                    nuevas_burbujas = [f"[ws] {b}" for b in message["reply"] if b not in self.burbujas_enviadas[session_id]]
+                    self.burbujas_enviadas[session_id].update(nuevas_burbujas)
+                    message["reply"] = nuevas_burbujas
                 await websocket.send_json(message)
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
@@ -59,6 +56,7 @@ manager = ConnectionManager()
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
 
+    # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
@@ -78,6 +76,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             messages_for_groq = system_messages + [{"role": "user", "content": user_text}]
 
             try:
+                # Generación principal
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
                     messages=messages_for_groq,
@@ -92,11 +91,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
-                burbujas = enriquecer_burbujas_contextual(
-                    dividir_burbujas_aleatorio(reply_text),
-                    contexto=user_text,
-                    burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
-                )
+                # Generar burbujas (sin duplicados, manejado en manager)
+                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(reply_text), contexto=user_text)
 
                 for b in burbujas:
                     await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
@@ -105,11 +101,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
-                burbujas = enriquecer_burbujas_contextual(
-                    dividir_burbujas_aleatorio(fallback_msg),
-                    contexto=user_text,
-                    burbujas_enviadas_global=manager.burbujas_enviadas[session_id]
-                )
+                burbujas = enriquecer_burbujas_contextual(dividir_burbujas_aleatorio(fallback_msg), contexto=user_text)
                 for b in burbujas:
                     await manager.send_personal_message({"reply": [b], "session_id": session_id, "error": "fallback"}, session_id)
 

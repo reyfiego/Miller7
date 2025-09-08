@@ -22,9 +22,13 @@ else:
 # Funciones
 # -------------------------------
 def dividir_burbujas_aleatorio(texto: str, max_len: int = 120) -> list[str]:
+    """
+    Divide el texto en burbujas (frases cortas) usando puntuación, azar y longitud máxima.
+    """
     texto = texto.replace("...", "…")
     frases = re.split(r'(?<=[.?!…])\s+', texto)
     burbujas, temp = [], ""
+
     for frase in frases:
         if random.random() < 0.5 or frase.endswith("?") or len(temp) + len(frase) > max_len:
             if temp:
@@ -32,12 +36,17 @@ def dividir_burbujas_aleatorio(texto: str, max_len: int = 120) -> list[str]:
             temp = frase
         else:
             temp = (temp + " " + frase).strip()
+
     if temp:
         burbujas.append(temp.strip())
+
     return burbujas
 
 
 def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
+    """
+    Verifica si alguna frase del contexto aparece en el mensaje.
+    """
     mensaje_lower = mensaje.lower()
     for frase in contexto:
         if frase.lower() in mensaje_lower:
@@ -46,8 +55,12 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
 
 
 def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
+    """
+    Genera una frase corta y coherente con el contexto usando Groq.
+    """
     if not groq_client:
         return ""
+
     prompt = f"""
 Eres un asistente empático y humano.
 Usuario: {contexto}
@@ -78,11 +91,15 @@ def enriquecer_burbujas_contextual(
     contexto: str | list[str],
     groq_client=groq_client,
     max_burbujas: int = 5,
-    burbujas_enviadas_global: set | None = None  # <-- soporte global
+    burbujas_enviadas_global: set | None = None  # <-- opcional
 ) -> list[str]:
+    """
+    Añade frases contextuales a las burbujas, evitando duplicados globales si se proporciona un set.
+    """
     if burbujas_enviadas_global is None:
         burbujas_enviadas_global = set()
 
+    # Convertir contexto a string si viene en lista
     if isinstance(contexto, list):
         contexto = " ".join([m.get("content", "") if isinstance(m, dict) else str(m) for m in contexto])
 
