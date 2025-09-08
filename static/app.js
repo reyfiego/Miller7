@@ -98,8 +98,15 @@ function connectWS() {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
         if (burbujasMostradas.has(msg)) continue;
-        await delay(i === 0 ? 0 : 500);
-        addBubble("ai", msg);
+
+        // La primera respuesta sin delay, las demás esperan 2s
+        if (i === 0) {
+          addBubble("ai", msg);
+        } else {
+          await delay(2000); // ⏳ Delay fijo de 2 segundos
+          addBubble("ai", msg);
+        }
+
         burbujasMostradas.add(msg);
       }
     }
