@@ -109,8 +109,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     # Iniciar tarea periódica
-    periodic_task = asyncio.create_task(enviar_mensajes_periodicos(session_id))
-    manager.periodic_tasks[session_id] = periodic_task
+    #periodic_task = asyncio.create_task(enviar_mensajes_periodicos(session_id))
+    #manager.periodic_tasks[session_id] = periodic_task
 
     try:
         while True:
