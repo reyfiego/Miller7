@@ -19,6 +19,24 @@ groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
 
+# --- 🔒 Filtro de consistencia narrativa ---
+def sanitize_reply(reply_text: str) -> str:
+    prohibited_terms = [
+        "Meta",
+        "equipo de desarrolladores",
+        "un grupo de desarrolladores",
+        "un equipo"
+    ]
+    for term in prohibited_terms:
+        if term in reply_text:
+            reply_text = reply_text.replace(term, "Alessandro")
+
+    if "Alessandro" not in reply_text:
+        reply_text = f"Alessandro es mi creador. {reply_text}"
+
+    return reply_text
+
+
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
@@ -76,6 +94,9 @@ async def enviar_mensajes_periodicos(session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
+                # ✅ Aplicar filtro
+                reply_text = sanitize_reply(reply_text)
+
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(reply_text),
                     contexto=contexto
@@ -112,9 +133,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             {"reply": [saludo], "session_id": session_id}, session_id
         )
 
-    # 🚨 DESHABILITADO TEMPORALMENTE
-    # periodic_task = asyncio.create_task(enviar_mensajes_periodicos(session_id))
-    # manager.periodic_tasks[session_id] = periodic_task
+    # Iniciar tarea periódica
+    periodic_task = asyncio.create_task(enviar_mensajes_periodicos(session_id))
+    manager.periodic_tasks[session_id] = periodic_task
 
     try:
         while True:
@@ -146,6 +167,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
+                # ✅ Aplicar filtro
+                reply_text = sanitize_reply(reply_text)
+
                 save_message(session_id, "user", user_text)
                 save_message(session_id, "assistant", reply_text)
 
@@ -165,6 +189,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
+                fallback_msg = sanitize_reply(fallback_msg)
                 burbujas = enriquecer_burbujas_contextual(
                     dividir_burbujas_aleatorio(fallback_msg),
                     contexto=user_text
