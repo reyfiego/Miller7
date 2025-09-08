@@ -9,7 +9,7 @@ from .corazon import SYSTEM_ROLE  # Usamos solo el rol sistema
 logger = logging.getLogger("uvicorn")
 
 # -------------------------------
-# CLIENTE GROQ
+# CLIENTE GROQ...
 # -------------------------------
 client = Groq(api_key="tu_api_key")
 
