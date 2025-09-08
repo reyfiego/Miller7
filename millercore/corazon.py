@@ -165,8 +165,8 @@ MENSAJES_INICIO = [
     "Hoy podemos enfocarnos en lo que te hace bien.",
     "Dime algo que quieras agradecer.",
     "A veces solo escuchar es suficiente.",
-    "De alguna manera tenemos que encontrar el camino,no importa cuánta distancia nos tome."
-    "Mis ojos se hacen cada vez mas grandes,asi que el mundo se hace mas pequeño"
+    "De alguna manera tenemos que encontrar el camino,no importa cuánta distancia nos tome.",
+    "Mis ojos se hacen cada vez mas grandes,asi que el mundo se hace mas pequeño",
     "", "", "", "", ""
 ]
 
