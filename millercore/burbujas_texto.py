@@ -22,20 +22,12 @@ else:
 # Funciones
 # -------------------------------
 def dividir_burbujas_aleatorio(texto: str, max_len: int = 120) -> list[str]:
-    """
-    Divide el texto en burbujas (frases cortas).
-    Usa puntuación + azar + control de longitud.
-    """
     texto = texto.replace("...", "…")
     frases = re.split(r'(?<=[.?!…])\s+', texto)
     burbujas, temp = [], ""
 
     for frase in frases:
-        if (
-            random.random() < 0.5
-            or frase.endswith("?")
-            or len(temp) + len(frase) > max_len
-        ):
+        if random.random() < 0.5 or frase.endswith("?") or len(temp) + len(frase) > max_len:
             if temp:
                 burbujas.append(temp.strip())
             temp = frase
@@ -49,9 +41,6 @@ def dividir_burbujas_aleatorio(texto: str, max_len: int = 120) -> list[str]:
 
 
 def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
-    """
-    Verifica si alguna frase del contexto aparece en el mensaje.
-    """
     mensaje_lower = mensaje.lower()
     for frase in contexto:
         if frase.lower() in mensaje_lower:
@@ -59,28 +48,29 @@ def contexto_coincide(mensaje: str, contexto: list[str]) -> bool:
     return False
 
 
-def generar_frase_contextual_groq(contexto: str, groq_client) -> str:
-    """
-    Genera una frase corta y coherente con el contexto usando Groq.
-    """
+def generar_frase_contextual_groq(contexto: str, groq_client, system_role: str = "") -> str:
     if not groq_client:
         return ""
 
     prompt = f"""
-Eres un asistente empático y humano.
 Usuario: {contexto}
 Responde con una frase corta y coherente que continúe la conversación.
 No uses más de 20 palabras.
 """
 
+    messages = []
+    if system_role:
+        messages.append({"role": "system", "content": system_role})
+    messages.append({"role": "user", "content": prompt})
+
     try:
         respuesta = groq_client.chat.completions.create(
             model=MODEL_ID,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=50,
             temperature=0.9
         )
-        # Manejo seguro de la respuesta
+
         mensaje = respuesta.choices[0].message
         if isinstance(mensaje, dict):
             return mensaje.get("content", "").strip()
@@ -97,16 +87,11 @@ def enriquecer_burbujas_contextual(
     burbujas: list[str],
     contexto: str | list[str],
     groq_client=groq_client,
+    system_role: str = "",
     max_burbujas: int = 5
 ) -> list[str]:
-    """
-    Enriquecer las burbujas añadiendo frases contextuales.
-    Máximo `max_burbujas` en el resultado.
-    """
     if isinstance(contexto, list):
-        contexto = " ".join(
-            [m.get("content", "") if isinstance(m, dict) else str(m) for m in contexto]
-        )
+        contexto = " ".join([m.get("content", "") if isinstance(m, dict) else str(m) for m in contexto])
 
     resultado = []
     frases_recientes = set()
@@ -119,12 +104,8 @@ def enriquecer_burbujas_contextual(
             frases_recientes.add(b)
 
         # Probabilidad de añadir frase contextual
-        if (
-            random.random() < 0.4
-            and not b.endswith("?")
-            and len(resultado) < max_burbujas
-        ):
-            frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
+        if random.random() < 0.4 and not b.endswith("?") and len(resultado) < max_burbujas:
+            frase_contextual = generar_frase_contextual_groq(contexto, groq_client, system_role=system_role)
             if frase_contextual and frase_contextual not in frases_recientes:
                 resultado.append(frase_contextual)
                 frases_recientes.add(frase_contextual)
@@ -133,12 +114,9 @@ def enriquecer_burbujas_contextual(
         if len(resultado) >= max_burbujas:
             break
 
-    # Garantizar al menos una frase contextual si se puede
-    if (
-        not frase_contextual_agregada
-        and len(resultado) < max_burbujas
-    ):
-        frase_contextual = generar_frase_contextual_groq(contexto, groq_client)
+    # Garantizar al menos una frase contextual si es posible
+    if not frase_contextual_agregada and len(resultado) < max_burbujas:
+        frase_contextual = generar_frase_contextual_groq(contexto, groq_client, system_role=system_role)
         if frase_contextual and frase_contextual not in frases_recientes:
             resultado.append(frase_contextual)
 
