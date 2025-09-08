@@ -13,7 +13,7 @@ const input = document.getElementById("prompt");
 const micBtn = document.getElementById("mic-btn");
 const overlay = document.getElementById("voice-overlay");
 const confirmBtn = document.getElementById("confirm");
-const cancelBtn = document = document.getElementById("cancel");
+const cancelBtn = document.getElementById("cancel");
 const waveBar = overlay.querySelector(".wave-level");
 
 const infoBtn = document.getElementById("info-btn");
@@ -74,42 +74,32 @@ function escapeHtml(str) {
 }
 
 let ws;
+let burbujasMostradas = new Set();
 
 // -------------------------
 // WEBSOCKET
 // -------------------------
-function getWelcomeMessage() {
-  const messages = [
-    "Hola, ¿en qué puedo ayudarte?",
-    "¡Hola! ¿Qué tal?",
-    "Hola, me alegro de verte.",
-    "Hola, ¿cómo estás?",
-  ];
-  return messages[Math.floor(Math.random() * messages.length)];
-}
-
 function connectWS() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
-  ws.onopen = () => {
-    console.log("Conectado al WebSocket");
-    ws.send(JSON.stringify({ from: "system", message: getWelcomeMessage() }));
-  };
+  ws.onopen = () => console.log("Conectado al WebSocket");
 
   ws.onmessage = async (event) => {
     let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch {
-      data = { reply: [event.data] };
+    try { 
+      data = JSON.parse(event.data); 
+    } catch { 
+      data = { reply: [event.data] }; 
     }
 
     if (Array.isArray(data.reply)) {
       for (let i = 0; i < data.reply.length; i++) {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-        await delay(500); 
+        if (burbujasMostradas.has(msg)) continue;
+        await delay(i === 0 ? 0 : 500);
         addBubble("ai", msg);
+        burbujasMostradas.add(msg);
       }
     }
   };
@@ -122,6 +112,7 @@ connectWS();
 function send(text) {
   addBubble("you", text);
   input.value = "";
+  burbujasMostradas.clear(); // limpia duplicados para nuevas respuestas
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ from: "user", message: text }));
   } else {
