@@ -6,7 +6,7 @@ import re
 # -------------------------------
 def dividir_burbujas_aleatorio(texto: str, max_len: int = 120) -> list[str]:
     """
-    Divide un texto largo en burbujas cortas, respetando frases y signos de puntuación.
+    Divide un texto largo en burbujas cortas, respetando frases y signos de puntuación(no mandar mas de 5 burbujas).
     """
     texto = texto.replace("...", "…")
     frases = re.split(r'(?<=[.?!…])\s+', texto)
