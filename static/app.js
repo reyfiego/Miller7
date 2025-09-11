@@ -1,3 +1,6 @@
+// -------------------------
+// SESIÓN
+// -------------------------
 const SESSION_KEY = "miller_session_id"; 
 let sessionId = localStorage.getItem(SESSION_KEY);
 if (!sessionId) {
@@ -7,6 +10,9 @@ if (!sessionId) {
 
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
 
+// -------------------------
+// ELEMENTOS DEL DOM
+// -------------------------
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
 const input = document.getElementById("prompt");
@@ -48,15 +54,26 @@ function closeElement(element) {
   }, 300);
 }
 
-loginBtn.addEventListener("click", () => { openElement(loginPanel); registerPanel.classList.remove("active"); });
-registerBtn.addEventListener("click", () => { openElement(registerPanel); loginPanel.classList.remove("active"); });
+loginBtn.addEventListener("click", () => { 
+  openElement(loginPanel); 
+  registerPanel.classList.remove("active"); 
+});
+registerBtn.addEventListener("click", () => { 
+  openElement(registerPanel); 
+  loginPanel.classList.remove("active"); 
+});
 closeLogin.addEventListener("click", () => closeElement(loginPanel));
 closeRegister.addEventListener("click", () => closeElement(registerPanel));
-panelOverlay.addEventListener("click", () => { closeElement(loginPanel); closeElement(registerPanel); });
+panelOverlay.addEventListener("click", () => { 
+  closeElement(loginPanel); 
+  closeElement(registerPanel); 
+});
 
 infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
+window.addEventListener("click", (e) => { 
+  if (e.target === modal) closeElement(modal); 
+});
 
 // -------------------------
 // CHAT
@@ -86,11 +103,19 @@ let burbujasMostradas = new Set();
 // WEBSOCKET
 // -------------------------
 function connectWS() {
-  if (ws && ws.readyState !== WebSocket.CLOSED) return; // Evita múltiples WS abiertos
+  if (ws && ws.readyState !== WebSocket.CLOSED) return; 
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
 
-  ws.onopen = () => console.log("Conectado al WebSocket");
+  ws.onopen = async () => {
+    console.log("Conectado al WebSocket");
+    // Cargar mensajes previos desde backend (memoria corta)
+    const res = await fetch(`/session/${sessionId}/messages`);
+    const data = await res.json();
+    if (Array.isArray(data.messages)) {
+      data.messages.forEach(msg => addBubble(msg.sender === "user" ? "you" : "ai", msg.content));
+    }
+  };
 
   ws.onmessage = async (event) => {
     let data;
@@ -105,11 +130,10 @@ function connectWS() {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
         if (burbujasMostradas.has(msg)) continue;
 
-        // La primera respuesta sin delay, las demás con 2s de espera
         if (i === 0) {
           addBubble("ai", msg);
         } else {
-          await delay(2000); // ⏳ Delay fijo de 2 segundos
+          await delay(2000); 
           addBubble("ai", msg);
         }
 
@@ -133,9 +157,8 @@ connectWS();
 function send(text) {
   addBubble("you", text);
   input.value = "";
-  // burbujasMostradas.clear(); // ❌ no limpiar para no perder contexto
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ from: "user", message: text }));
+    ws.send(JSON.stringify({ from: "user", message: text })); 
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
@@ -203,7 +226,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 // -------------------------
 // LOGIN / REGISTRO
 // -------------------------
-loginForm.addEventListener("submit", (e) => {
+loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(loginForm);
   const email = formData.get("email").trim();
@@ -213,24 +236,27 @@ loginForm.addEventListener("submit", (e) => {
     return; 
   }
 
-  fetch("/login", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  })
-  .then(res => res.json())
-  .then(data => {
+  try {
+    const res = await fetch("/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
     if (data.success) {
       alert("Inicio de sesión exitoso");
       loggedIn = true;
       localStorage.setItem("miller_logged_in", "true");
       closeElement(loginPanel);
-    } else alert(data.message || "Error en inicio de sesión");
-  })
-  .catch(() => alert("Error al conectar con el servidor"));
+    } else {
+      alert(data.message || "Error en inicio de sesión");
+    }
+  } catch {
+    alert("Error al conectar con el servidor");
+  }
 });
 
-registerForm.addEventListener("submit", (e) => {
+registerForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   const formData = new FormData(registerForm);
   const email = formData.get("email").trim();
@@ -240,17 +266,20 @@ registerForm.addEventListener("submit", (e) => {
     return; 
   }
 
-  fetch("/register", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
-  })
-  .then(res => res.json())
-  .then(data => {
+  try {
+    const res = await fetch("/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
     if (data.success) {
       alert("Registro exitoso, ya puedes iniciar sesión");
       closeElement(registerPanel);
-    } else alert(data.message || "Error en registro");
-  })
-  .catch(() => alert("Error al conectar con el servidor"));
+    } else {
+      alert(data.message || "Error en registro");
+    }
+  } catch {
+    alert("Error al conectar con el servidor");
+  }
 });

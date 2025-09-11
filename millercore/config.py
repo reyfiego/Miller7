@@ -2,30 +2,35 @@ import os
 from dotenv import load_dotenv
 from passlib.context import CryptContext
 from groq import Groq
+from supabase import create_client, Client
 
 # -------------------------------
 # CARGA DE VARIABLES DE ENTORNO
 # -------------------------------
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+MAIL_USER = os.getenv("MAIL_USER")
+MAIL_PASS = os.getenv("MAIL_PASS")
 SECRET_KEY = os.getenv("SECRET_KEY")
-API_KEY = os.getenv("GROQ_API_KEY")
-MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")  # acceso completo
 
-if not API_KEY:
+if not GROQ_API_KEY:
     raise ValueError("❌ No se encontró GROQ_API_KEY en el entorno.")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("❌ No se encontró la configuración de Supabase en el entorno.")
 
 # -------------------------------
 # CLIENTE GROQ
 # -------------------------------
-groq_client = Groq(api_key=API_KEY)
+groq_client = Groq(api_key=GROQ_API_KEY)
 
 # -------------------------------
-# BASE DE DATOS
+# CLIENTE SUPABASE
 # -------------------------------
-DB_PATH = os.path.join(os.path.dirname(__file__), "miller2.db")  # ruta de la base de datos SQLite
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # -------------------------------
 # PASSWORD HASHING
@@ -45,10 +50,11 @@ def verify_password(password: str, hashed: str) -> bool:
 # -------------------------------
 EMAIL_VERIFICATION_EXPIRATION_MINUTES = 5  # minutos de validez de token de verificación
 WEBSOCKET_IDLE_TIMEOUT_SECONDS = 120       # tiempo para considerar inactividad en websockets
+DEFAULT_GREETING_PROBABILITY = 0.8         # probabilidad de enviar un saludo al iniciar sesión
+MAX_BUBBLES_PER_RESPONSE = 5               # máximo de burbujas que se pueden enviar por mensaje
+MIN_BUBBLES_PER_RESPONSE = 2               # mínimo de burbujas por mensaje
 
 # -------------------------------
-# OTROS SETTINGS
+# RUTA LOCAL BASE DE DATOS (opcional SQLite)
 # -------------------------------
-DEFAULT_GREETING_PROBABILITY = 0.8  # probabilidad de enviar un saludo al iniciar sesión
-MAX_BUBBLES_PER_RESPONSE = 5       # máximo de burbujas que se pueden enviar por mensaje
-MIN_BUBBLES_PER_RESPONSE = 2       # mínimo de burbujas por mensaje
+DB_PATH = os.path.join(os.path.dirname(__file__), "miller2.db")

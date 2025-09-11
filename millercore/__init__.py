@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from groq import Groq
+from fastapi import FastAPI, HTTPException
+from db.models import crear_usuario, autenticar_usuario, guardar_sesion
 import os, uuid
 import speech_recognition as sr
 
@@ -46,3 +48,20 @@ async def audio_to_text(file: UploadFile = File(...)):
     except Exception as e:
         print("Error en /audio:", repr(e))
         return {"text": "", "error": str(e)}
+
+@app.post("/registro/")
+def registro(correo: str, contra: str):
+    crear_usuario(correo, contra)
+    return {"status": "usuario creado"}
+
+@app.post("/login/")
+def login(correo: str, contra: str):
+    user = autenticar_usuario(correo, contra)
+    if not user:
+        raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
+    return {"status": "login exitoso", "user_id": user['id']}
+
+@app.post("/sesion/")
+def nueva_sesion(user_id: str, contexto: str):
+    guardar_sesion(user_id, contexto)
+    return {"status": "sesion guardada"}
