@@ -4,28 +4,43 @@ import uuid
 from datetime import datetime
 
 # --- Usuarios ---
-def crear_usuario(correo, contra):
-    hashed = bcrypt.hashpw(contra.encode(), bcrypt.gensalt()).decode()
-    return supabase.table("usuarios").insert({
+def crear_usuario(email, password):
+    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return supabase.table("users").insert({
         "id": str(uuid.uuid4()),
-        "correo": correo,
-        "contra": hashed
+        "email": email,
+        "password": hashed
     }).execute()
 
-def autenticar_usuario(correo, contra):
-    user = supabase.table("usuarios").select("*").eq("correo", correo).execute()
-    if user.data and bcrypt.checkpw(contra.encode(), user.data[0]['contra'].encode()):
+def autenticar_usuario(email, password):
+    user = supabase.table("users").select("*").eq("email", email).execute()
+    if user.data and bcrypt.checkpw(password.encode(), user.data[0]['password'].encode()):
         return user.data[0]
     return None
 
 # --- Sesiones ---
-def guardar_sesion(usuario_id, contexto):
-    return supabase.table("sesiones").insert({
+def guardar_sesion(user_id, context):
+    return supabase.table("sessions").insert({
         "id": str(uuid.uuid4()),
-        "usuario_id": usuario_id,
-        "contexto": contexto,
-        "creado_en": datetime.now().isoformat()
+        "user_id": user_id,
+        "context": context,
+        "created_at": datetime.now().isoformat()
     }).execute()
 
-def obtener_sesiones(usuario_id):
-    return supabase.table("sesiones").select("*").eq("usuario_id", usuario_id).execute()
+def obtener_sesiones(user_id):
+    return supabase.table("sessions").select("*").eq("user_id", user_id).execute()
+
+# --- Mensajes ---
+def save_message(session_id, sender, content, emotion=None):
+    return supabase.table("messages").insert({
+        "id": str(uuid.uuid4()),
+        "session_id": session_id,
+        "sender": sender,
+        "content": content,
+        "emotion": emotion,
+        "created_at": datetime.now().isoformat()
+    }).execute()
+
+def get_session_messages(session_id):
+    res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
+    return res.data if res.data else []
