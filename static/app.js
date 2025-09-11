@@ -70,7 +70,13 @@ function addBubble(sender, text) {
 }
 
 function escapeHtml(str) {
-  return str.replace(/[&<>"']/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[s]));
+  return str.replace(/[&<>"']/g, (s) => ({ 
+    '&': '&amp;', 
+    '<': '&lt;', 
+    '>': '&gt;', 
+    '"': '&quot;', 
+    "'": '&#039;' 
+  }[s]));
 }
 
 let ws;
@@ -99,7 +105,7 @@ function connectWS() {
         const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
         if (burbujasMostradas.has(msg)) continue;
 
-        // La primera respuesta sin delay, las demás esperan 2s
+        // La primera respuesta sin delay, las demás con 2s de espera
         if (i === 0) {
           addBubble("ai", msg);
         } else {
@@ -112,8 +118,15 @@ function connectWS() {
     }
   };
 
-  ws.onclose = () => { console.log("WebSocket cerrado. Reconectando en 3s..."); setTimeout(connectWS, 3000); };
-  ws.onerror = (err) => { console.error("Error WebSocket:", err); ws.close(); };
+  ws.onclose = () => { 
+    console.log("WebSocket cerrado. Reconectando en 3s..."); 
+    setTimeout(connectWS, 3000); 
+  };
+
+  ws.onerror = (err) => { 
+    console.error("Error WebSocket:", err); 
+    ws.close(); 
+  };
 }
 connectWS();
 
@@ -139,7 +152,9 @@ form.addEventListener("submit", (e) => {
   if (text) send(text);
 });
 
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function delay(ms) { 
+  return new Promise(resolve => setTimeout(resolve, ms)); 
+}
 
 // -------------------------
 // MICROFONO
@@ -157,11 +172,29 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     waveBar.style.width = Math.min(100, Math.random() * 100) + "%";
   });
 
-  recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
+  recognition.addEventListener("end", () => { 
+    micBtn.disabled = false; 
+    waveBar.style.width = "0%"; 
+  });
 
-  micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
-  confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-  cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
+  micBtn.addEventListener("click", () => { 
+    overlay.style.display = "flex"; 
+    micBtn.disabled = true; 
+    recognition.start(); 
+  });
+
+  confirmBtn.addEventListener("click", () => { 
+    if (currentTranscript.trim()) send(currentTranscript); 
+    overlay.style.display = "none"; 
+    currentTranscript = ""; 
+    waveBar.style.width = "0%"; 
+  });
+
+  cancelBtn.addEventListener("click", () => { 
+    overlay.style.display = "none"; 
+    currentTranscript = ""; 
+    waveBar.style.width = "0%"; 
+  });
 } else {
   micBtn.disabled = true;
   micBtn.title = "Tu navegador no soporta reconocimiento de voz";
@@ -175,7 +208,10 @@ loginForm.addEventListener("submit", (e) => {
   const formData = new FormData(loginForm);
   const email = formData.get("email").trim();
   const password = formData.get("password").trim();
-  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
+  if (!email || !password) { 
+    alert("Por favor completa todos los campos."); 
+    return; 
+  }
 
   fetch("/login", {
     method: "POST",
@@ -199,7 +235,10 @@ registerForm.addEventListener("submit", (e) => {
   const formData = new FormData(registerForm);
   const email = formData.get("email").trim();
   const password = formData.get("password").trim();
-  if (!email || !password) { alert("Por favor completa todos los campos."); return; }
+  if (!email || !password) { 
+    alert("Por favor completa todos los campos."); 
+    return; 
+  }
 
   fetch("/register", {
     method: "POST",
