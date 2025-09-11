@@ -31,7 +31,7 @@ def obtener_sesiones(user_id):
     return supabase.table("sessions").select("*").eq("user_id", user_id).execute()
 
 # --- Mensajes ---
-def save_message(session_id, sender, content, emotion=None):
+def guardar_mensaje(session_id, sender, content, emotion=None):
     return supabase.table("messages").insert({
         "id": str(uuid.uuid4()),
         "session_id": session_id,
@@ -41,6 +41,15 @@ def save_message(session_id, sender, content, emotion=None):
         "created_at": datetime.now().isoformat()
     }).execute()
 
-def get_session_messages(session_id):
+def obtener_mensajes(session_id):
     res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
     return res.data if res.data else []
+
+# --- Respaldo de sesiones ---
+def guardar_backup(session_id, full_log):
+    return supabase.table("session_backups").insert({
+        "id": str(uuid.uuid4()),
+        "session_id": session_id,
+        "full_log": full_log,
+        "created_at": datetime.now().isoformat()
+    }).execute()
