@@ -1,17 +1,22 @@
-from fastapi import FastAPI, UploadFile, File
+import os
+import uuid
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
-from groq import Groq
-from fastapi import FastAPI, HTTPException
-from .db.models import crear_usuario, autenticar_usuario, guardar_sesion
-import os, uuid
+from pydantic import BaseModel
 import speech_recognition as sr
+from groq import Groq
 
-from millercore.websocket_manager import router as websocket_router
+from .db.models import crear_usuario, autenticar_usuario, guardar_sesion, obtener_sesiones
+from .websocket_manager import router as websocket_router
 
 load_dotenv()
+
+# -------------------------
+# CONFIGURACIÓN GROQ
+# -------------------------
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
@@ -21,16 +26,31 @@ if not API_KEY:
 else:
     groq_client = Groq(api_key=API_KEY)
 
+# -------------------------
+# APP FASTAPI
+# -------------------------
 app = FastAPI()
 app.include_router(websocket_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
+# -------------------------
+# Pydantic Models
+# -------------------------
+class User(BaseModel):
+    email: str
+    password: str
 
+class SessionData(BaseModel):
+    user_id: str
+    contexto: str
+
+# -------------------------
+# ENDPOINTS HTTP
+# -------------------------
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
-
 
 @app.post("/audio")
 async def audio_to_text(file: UploadFile = File(...)):
@@ -49,19 +69,25 @@ async def audio_to_text(file: UploadFile = File(...)):
         print("Error en /audio:", repr(e))
         return {"text": "", "error": str(e)}
 
-@app.post("/registro/")
-def registro(correo: str, contra: str):
-    crear_usuario(correo, contra)
-    return {"status": "usuario creado"}
+@app.post("/register")
+def register(user: User):
+    crear_usuario(user.email, user.password)
+    return {"success": True, "message": "Usuario creado"}
 
-@app.post("/login/")
-def login(correo: str, contra: str):
-    user = autenticar_usuario(correo, contra)
-    if not user:
+@app.post("/login")
+def login(user: User):
+    u = autenticar_usuario(user.email, user.password)
+    if not u:
         raise HTTPException(status_code=401, detail="Usuario o contraseña incorrectos")
-    return {"status": "login exitoso", "user_id": user['id']}
+    return {"success": True, "user_id": u['id']}
 
-@app.post("/sesion/")
-def nueva_sesion(user_id: str, contexto: str):
-    guardar_sesion(user_id, contexto)
-    return {"status": "sesion guardada"}
+@app.post("/session/")
+def nueva_sesion(data: SessionData):
+    guardar_sesion(data.user_id, data.contexto)
+    return {"success": True, "message": "Sesión guardada"}
+
+@app.get("/session/{session_id}/messages")
+def get_session_messages_endpoint(session_id: str):
+    sesiones = obtener_sesiones(session_id)
+    messages = [{"sender": "user", "content": s["contexto"]} for s in sesiones.data] if sesiones.data else []
+    return {"messages": messages}
