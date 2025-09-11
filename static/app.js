@@ -109,11 +109,15 @@ function connectWS() {
 
   ws.onopen = async () => {
     console.log("Conectado al WebSocket");
-    // Cargar mensajes previos desde backend (memoria corta)
-    const res = await fetch(`/session/${sessionId}/messages`);
-    const data = await res.json();
-    if (Array.isArray(data.messages)) {
-      data.messages.forEach(msg => addBubble(msg.sender === "user" ? "you" : "ai", msg.content));
+    // Cargar mensajes previos desde backend
+    try {
+      const res = await fetch(`/session/${sessionId}/messages`);
+      const data = await res.json();
+      if (Array.isArray(data.messages)) {
+        data.messages.forEach(msg => addBubble(msg.sender === "user" ? "you" : "ai", msg.content));
+      }
+    } catch (err) {
+      console.warn("No se pudieron cargar mensajes previos:", err);
     }
   };
 
@@ -158,7 +162,7 @@ function send(text) {
   addBubble("you", text);
   input.value = "";
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ from: "user", message: text })); 
+    ws.send(JSON.stringify({ message: text })); 
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
