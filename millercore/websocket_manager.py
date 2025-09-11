@@ -5,7 +5,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
-from .db.models import guardar_sesion, guardar_mensaje, obtener_mensajes
+from .db.models import guardar_sesion, get_session_messages, save_message
 from dotenv import load_dotenv
 import uuid
 from datetime import datetime
@@ -21,18 +21,18 @@ groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
 
+# -------------------------
+# MANEJO DE CONEXIONES
+# -------------------------
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.burbujas_enviadas: dict[str, set[str]] = {}
-        self.sessions_context: dict[str, list] = {}  # memoria corta por session_id
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
         self.active_connections[session_id] = websocket
         self.burbujas_enviadas[session_id] = set()
-        if session_id not in self.sessions_context:
-            self.sessions_context[session_id] = []
         print(f"[{session_id}] Conectado")
 
     def disconnect(self, session_id: str):
@@ -55,6 +55,9 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# -------------------------
+# FUNCIONES AUXILIARES
+# -------------------------
 async def enviar_burbujas_con_delay(burbujas, session_id):
     for b in burbujas:
         if b not in manager.burbujas_enviadas[session_id]:
@@ -62,20 +65,12 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
             await asyncio.sleep(random.uniform(1, 3))
 
 
+# -------------------------
+# WEBSOCKET ENDPOINT
+# -------------------------
 @router.websocket("/ws/chat/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str, user_id: str = None):
-    """
-    user_id opcional: si viene None, se crea sesión anónima
-    """
-    # Si no hay session_id válido, generar uno
-    if not session_id:
-        session_id = str(uuid.uuid4())
-
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
-
-    # Crear sesión en DB (anonima o con usuario)
-    context = {"started_at": datetime.now().isoformat(), "user_id": user_id or "anonymous"}
-    guardar_sesion(user_id, session_id, context)
 
     # Saludo inicial
     saludo = get_random_greeting()
@@ -87,14 +82,24 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, user_id: str
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
             if not user_text:
-                await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
+                await manager.send_personal_message(
+                    {"reply": ["Por favor, dime algo para responderte."], "session_id": session_id},
+                    session_id
+                )
                 continue
 
-            # Guardar mensaje
-            guardar_mensaje(session_id, "user", user_text)
+            # Definir user_id para sesión anónima si no está logueado
+            user_id = data.get("user_id") or "anonymous"
 
-            # Obtener historial
-            history = obtener_mensajes(session_id)
+            # Guardar sesión (nueva o actualizar existente)
+            context = {"started_at": datetime.now().isoformat()}
+            guardar_sesion(user_id, session_id, context)
+
+            # Guardar mensaje del usuario
+            save_message(session_id, "user", user_text)
+
+            # Historial completo
+            history = get_session_messages(session_id)
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             messages_for_groq = system_messages + [{"role": m["sender"], "content": m["content"]} for m in history]
 
@@ -110,8 +115,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str, user_id: str
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Guardar respuesta
-                guardar_mensaje(session_id, "assistant", reply_text)
+                # Guardar respuesta de Miller
+                save_message(session_id, "assistant", reply_text)
 
                 # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)

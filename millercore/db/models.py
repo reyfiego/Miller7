@@ -3,13 +3,16 @@ import bcrypt
 import uuid
 from datetime import datetime
 
-# --- Usuarios ---
+# -------------------------
+# USUARIOS
+# -------------------------
 def crear_usuario(email, password):
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     return supabase.table("users").insert({
         "id": str(uuid.uuid4()),
         "email": email,
-        "password": hashed
+        "password": hashed,
+        "created_at": datetime.now().isoformat()
     }).execute()
 
 def autenticar_usuario(email, password):
@@ -18,21 +21,35 @@ def autenticar_usuario(email, password):
         return user.data[0]
     return None
 
-# --- Sesiones ---
+# -------------------------
+# SESIONES
+# -------------------------
 def guardar_sesion(user_id, session_id, context):
-    return supabase.table("sessions").insert({
-        "id": session_id,
-        "user_id": user_id,
-        "context": context,
-        "created_at": datetime.now().isoformat(),
-        "updated_at": datetime.now().isoformat()
-    }).execute()
+    # Verifica si la sesión ya existe
+    existing = supabase.table("sessions").select("*").eq("id", session_id).execute()
+    if existing.data:
+        # Actualiza contexto y updated_at
+        return supabase.table("sessions").update({
+            "context": context,
+            "updated_at": datetime.now().isoformat()
+        }).eq("id", session_id).execute()
+    else:
+        # Crea nueva sesión
+        return supabase.table("sessions").insert({
+            "id": session_id,
+            "user_id": user_id,
+            "context": context,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }).execute()
 
 def obtener_sesiones(user_id):
     return supabase.table("sessions").select("*").eq("user_id", user_id).execute()
 
-# --- Mensajes ---
-def guardar_mensaje(session_id, sender, content, emotion=None):
+# -------------------------
+# MENSAJES
+# -------------------------
+def save_message(session_id, sender, content, emotion=None):
     return supabase.table("messages").insert({
         "id": str(uuid.uuid4()),
         "session_id": session_id,
@@ -42,15 +59,6 @@ def guardar_mensaje(session_id, sender, content, emotion=None):
         "created_at": datetime.now().isoformat()
     }).execute()
 
-def obtener_mensajes(session_id):
+def get_session_messages(session_id):
     res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
     return res.data if res.data else []
-
-# --- Respaldo de sesiones ---
-def guardar_backup(session_id, full_log):
-    return supabase.table("session_backups").insert({
-        "id": str(uuid.uuid4()),
-        "session_id": session_id,
-        "full_log": full_log,
-        "created_at": datetime.now().isoformat()
-    }).execute()
