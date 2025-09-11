@@ -5,7 +5,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
-from db import create_session, save_message, get_session_messages
+from millercore.db import create_session, save_message, get_session_messages
 from dotenv import load_dotenv
 
 load_dotenv()
