@@ -5,7 +5,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
-from .db.models import guardar_sesion, obtener_sesiones, guardar_mensaje, obtener_mensajes, guardar_backup
+from .db.models import guardar_sesion, guardar_mensaje, obtener_mensajes
 from dotenv import load_dotenv
 import uuid
 from datetime import datetime
@@ -25,11 +25,14 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.burbujas_enviadas: dict[str, set[str]] = {}
+        self.sessions_context: dict[str, list] = {}  # memoria corta por session_id
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
         self.active_connections[session_id] = websocket
         self.burbujas_enviadas[session_id] = set()
+        if session_id not in self.sessions_context:
+            self.sessions_context[session_id] = []
         print(f"[{session_id}] Conectado")
 
     def disconnect(self, session_id: str):
@@ -60,9 +63,21 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
 
 
 @router.websocket("/ws/chat/{session_id}")
-async def websocket_endpoint(websocket: WebSocket, session_id: str):
+async def websocket_endpoint(websocket: WebSocket, session_id: str, user_id: str = None):
+    """
+    user_id opcional: si viene None, se crea sesión anónima
+    """
+    # Si no hay session_id válido, generar uno
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
     await manager.connect(websocket, session_id)
 
+    # Crear sesión en DB (anonima o con usuario)
+    context = {"started_at": datetime.now().isoformat(), "user_id": user_id or "anonymous"}
+    guardar_sesion(user_id, session_id, context)
+
+    # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
@@ -75,10 +90,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
                 continue
 
-            # --- Guardar mensaje del usuario ---
+            # Guardar mensaje
             guardar_mensaje(session_id, "user", user_text)
 
-            # --- Preparar historial ---
+            # Obtener historial
             history = obtener_mensajes(session_id)
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             messages_for_groq = system_messages + [{"role": m["sender"], "content": m["content"]} for m in history]
@@ -95,10 +110,10 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # --- Guardar respuesta de Miller ---
+                # Guardar respuesta
                 guardar_mensaje(session_id, "assistant", reply_text)
 
-                # --- Enviar en burbujas ---
+                # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
                 await enviar_burbujas_con_delay(burbujas, session_id)
 

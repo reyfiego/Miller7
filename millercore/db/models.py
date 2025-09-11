@@ -19,12 +19,13 @@ def autenticar_usuario(email, password):
     return None
 
 # --- Sesiones ---
-def guardar_sesion(user_id, context):
+def guardar_sesion(user_id, session_id, context):
     return supabase.table("sessions").insert({
-        "id": str(uuid.uuid4()),
+        "id": session_id,
         "user_id": user_id,
         "context": context,
-        "created_at": datetime.now().isoformat()
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat()
     }).execute()
 
 def obtener_sesiones(user_id):
