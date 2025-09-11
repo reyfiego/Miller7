@@ -5,7 +5,7 @@ from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
 from groq import Groq
 from fastapi import FastAPI, HTTPException
-from from .db.models import crear_usuario, autenticar_usuario, guardar_sesion
+from  .db.models import crear_usuario, autenticar_usuario, guardar_sesion
 import os, uuid
 import speech_recognition as sr
 
