@@ -1,4 +1,4 @@
-from db.supabase_client import supabase
+from .supabase_client import supabase
 import bcrypt
 import uuid
 from datetime import datetime
