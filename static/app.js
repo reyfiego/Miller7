@@ -184,6 +184,36 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 // -------------------------
 // LOGIN / REGISTRO
 // -------------------------
+
+
+registerForm.addEventListener("submit", async (e) => {
+    e.preventDefault(); // evitamos el refresh
+    const formData = new FormData(registerForm);
+    const email = formData.get("email").trim();
+    const password = formData.get("password").trim();
+    if (!email || !password) return alert("Completa todos los campos.");
+
+    try {
+        const res = await fetch("/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            alert("¡Registro exitoso! Ahora puedes iniciar sesión.");
+            // Opcional: cerrar panel de registro
+            closeElement(registerPanel);
+        } else {
+            alert(data.message || "Error en el registro");
+        }
+    } catch (err) {
+        console.error("Error al registrar usuario:", err);
+        alert("Error al conectar con el servidor");
+    }
+});
+
 loginForm.addEventListener("submit", async (e) => {
     e.preventDefault(); // prevenimos refresco automático mientras validamos
     const formData = new FormData(loginForm);
