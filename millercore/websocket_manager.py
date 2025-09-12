@@ -76,7 +76,7 @@ def save_message(session_id, role, content):
 
 # Recuperar mensajes de la DB
 def get_session_messages_from_db(session_id):
-    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at").execute()
+    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", ascending="asc").execute()
     if res.data:
         return [{"role": m["sender"], "content": m["content"]} for m in res.data]
     return []
@@ -108,16 +108,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
                 continue
 
-            # Guardar sesión en DB si es usuario registrado
+            # Crear sesión si no existe o actualizar
             if user_id:
+                # Usuario registrado
                 try:
-                    # Crear sesión si no existe
-                    crear_sesion(user_id=user_id, session_id=session_id, context="chat")
+                    crear_sesion(user_id=user_id, context=manager.sessions_context.get(session_id, []))
                 except Exception:
-                    pass  # sesión ya creada, ignorar
+                    # Si ya existe, solo actualizamos el contexto
+                    guardar_sesion(session_id=session_id, context=manager.sessions_context.get(session_id, []))
             else:
                 # Sesión anónima
-                guardar_sesion(user_id=None, session_id=session_id, context="chat")
+                guardar_sesion(session_id=session_id, context=manager.sessions_context.get(session_id, []))
 
             # Guardar mensaje del usuario
             save_message(session_id, "user", user_text)
@@ -155,6 +156,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "content": reply_text,
                     "created_at": datetime.now().isoformat()
                 }).execute()
+
+                # Actualizar contexto de la sesión
+                guardar_sesion(session_id=session_id, context=manager.sessions_context[session_id])
 
                 # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
