@@ -91,12 +91,12 @@ function escapeHtml(str) {
     }[s]));
 }
 
-let ws;
-let burbujasMostradas = new Set();
-
 // -------------------------
 // WEBSOCKET
 // -------------------------
+let ws;
+let burbujasMostradas = new Set();
+
 function connectWS() {
     if (ws && ws.readyState !== WebSocket.CLOSED) return;
 
@@ -108,7 +108,7 @@ function connectWS() {
 
         // Cargar historial previo
         try {
-            const realSessionId = loggedIn ? userId : sessionId; // ⚡ solo UUID real para usuarios logeados
+            const realSessionId = loggedIn ? userId : sessionId;
             const res = await fetch(`/session/${realSessionId}/messages`);
             const data = await res.json();
             if (Array.isArray(data.messages)) {
@@ -143,19 +143,30 @@ function connectWS() {
     ws.onerror = (err) => { console.error("Error WS:", err); ws.close(); };
 }
 
+// Enviar mensajes seguro
 function send(text) {
     addBubble("you", text);
     input.value = "";
-    if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ message: text, user_id: loggedIn ? userId : null }));
-    } else {
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
         addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
         reconnectWS();
+        return;
     }
+
+    ws.send(JSON.stringify({ message: text, user_id: loggedIn ? userId : null }));
 }
 
-function reconnectWS() { if (!ws || ws.readyState === WebSocket.CLOSED) connectWS(); }
-form.addEventListener("submit", (e) => { e.preventDefault(); const text = input.value.trim(); if (text) send(text); });
+function reconnectWS() {
+    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
+}
+
+form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (text) send(text);
+});
+
 function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // -------------------------
@@ -185,7 +196,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 // LOGIN / REGISTRO SIN REFRESH
 // -------------------------
 loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // Evita refresh
+    e.preventDefault();
     const formData = new FormData(loginForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
@@ -203,15 +214,12 @@ loginForm.addEventListener("submit", async (e) => {
             loggedIn = true;
             userId = data.user_id;
 
-            // Guardar credenciales en localStorage
             localStorage.setItem(LOGGED_KEY, "true");
             localStorage.setItem(USER_ID_KEY, userId);
-
-            // Cambiar sessionId al UUID del usuario
             sessionId = userId;
             localStorage.setItem(SESSION_KEY, sessionId);
 
-            // Reconectar WebSocket con sessionId actualizado
+            // Reconectar WS con la nueva sesión
             if (ws) ws.close();
             connectWS();
 
@@ -227,7 +235,7 @@ loginForm.addEventListener("submit", async (e) => {
 });
 
 registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // Evita refresh
+    e.preventDefault();
     const formData = new FormData(registerForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
@@ -252,3 +260,8 @@ registerForm.addEventListener("submit", async (e) => {
         alert("Error al conectar con el servidor");
     }
 });
+
+// -------------------------
+// Inicializar WebSocket
+// -------------------------
+connectWS();
