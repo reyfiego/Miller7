@@ -22,6 +22,13 @@ def autenticar_usuario(email, password):
 def crear_sesion(user_id=None, context=None):
     """Crea una nueva sesión y retorna el session_id"""
     session_id = str(uuid.uuid4())
+
+    # Verificar si el usuario existe
+    if user_id:
+        user_check = supabase.table("users").select("id").eq("id", user_id).execute()
+        if not user_check.data:  # usuario no existe → tratar como anónimo
+            user_id = None
+
     return supabase.table("sessions").insert({
         "id": session_id,
         "user_id": user_id,
