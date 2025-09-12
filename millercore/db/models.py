@@ -79,6 +79,7 @@ def save_message(session_id, sender, content, emotion=None):
     }).execute()
 
 def get_session_messages(session_id):
-    """Obtiene mensajes de una sesión activa, ordenados por fecha ascendente."""
-    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", ascending="asc").execute()
+    # Orden correcto usando asc como string
+    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", "asc").execute()
     return res.data if res.data else []
+
