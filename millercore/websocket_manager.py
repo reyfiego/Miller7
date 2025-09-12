@@ -1,4 +1,5 @@
 import os
+import uuid
 import asyncio
 import random
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -9,6 +10,9 @@ from millercore.db.models import save_message, crear_sesion
 from millercore.cerebro.memoria import get_session_messages, cerrar_sesion
 from dotenv import load_dotenv
 from datetime import datetime
+from .db.supabase_client import supabase
+
+
 
 load_dotenv()
 
@@ -20,29 +24,14 @@ if not API_KEY:
 groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
-
 # ------------------------------
-# Serialización de mensajes
-# ------------------------------
-def serialize_messages(messages):
-    """Convierte datetime a string ISO para JSON y ordena ascendentemente."""
-    serialized = []
-    for m in messages:
-        m_copy = m.copy()
-        if "created_at" in m_copy and isinstance(m_copy["created_at"], datetime):
-            m_copy["created_at"] = m_copy["created_at"].isoformat()
-        serialized.append(m_copy)
-    return sorted(serialized, key=lambda x: x["created_at"])
-
-
-# ------------------------------
-# Connection Manager
+# Manejo de conexiones y sesiones
 # ------------------------------
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.burbujas_enviadas: dict[str, set[str]] = {}
-        self.sessions_context: dict[str, list] = {}
+        self.sessions_context: dict[str, list] = {}  # memoria corta por session_id
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -55,58 +44,64 @@ class ConnectionManager:
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
         self.burbujas_enviadas.pop(session_id, None)
-        try:
-            cerrar_sesion(session_id)
-            print(f"[{session_id}] Sesión cerrada y backup realizado")
-        except Exception as e:
-            print(f"[{session_id}] Error cerrando sesión:", repr(e))
         print(f"[{session_id}] Desconectado")
 
     async def send_personal_message(self, message: dict, session_id: str):
         websocket = self.active_connections.get(session_id)
         if websocket:
             try:
-                if "reply" in message and all(isinstance(m, str) for m in message["reply"]):
+                if "reply" in message:
+                    # Prefijo [ws] para cada burbuja
+                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
                     self.burbujas_enviadas[session_id].update(message["reply"])
                 await websocket.send_json(message)
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
-
 manager = ConnectionManager()
 
-
 # ------------------------------
-# Auxiliares
+# Funciones auxiliares
 # ------------------------------
 async def enviar_burbujas_con_delay(burbujas, session_id):
     for b in burbujas:
-        if b not in manager.burbujas_enviadas[session_id]:
+        if f"[ws] {b}" not in manager.burbujas_enviadas[session_id]:
             await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
-            await asyncio.sleep(random.uniform(1, 3))
+            await asyncio.sleep(random.uniform(1, 3))  # delay aleatorio
 
+def get_session_messages_from_db(session_id):
+    res = (
+        supabase.table("messages")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at")
+        .execute()
+    )
+    if res.data:
+        return [{"role": m["sender"], "content": m["content"]} for m in res.data]
+    return []
 
-def map_sender_to_role(message):
-    """Convierte sender → role para Groq."""
-    if message["sender"] == "user":
-        return {"role": "user", "content": message["content"]}
-    elif message["sender"] == "miller":
-        return {"role": "assistant", "content": message["content"]}
-    else:
-        return {"role": "system", "content": message["content"]}
-
+def ensure_session_exists(session_id: str):
+    """Hotfix: asegurar que la sesión exista antes de insertar mensajes"""
+    existing = supabase.table("sessions").select("id").eq("id", session_id).execute()
+    if not existing.data:
+        supabase.table("sessions").insert({
+            "id": session_id,
+            "user_id": None,
+            "context": [],
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }).execute()
 
 # ------------------------------
 # WebSocket endpoint
 # ------------------------------
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    # Crear sesión si es invitado o no existe
-    if not session_id or session_id == "guest":
-        session_id = crear_sesion(user_id=None, context=[])
-        print(f"Nuevo session_id generado para invitado: {session_id}")
-
     await manager.connect(websocket, session_id)
+
+    # Hotfix: verificar o crear sesión al conectar
+    ensure_session_exists(session_id)
 
     # Saludo inicial
     saludo = get_random_greeting()
@@ -114,15 +109,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial
-        history = get_session_messages(session_id)
+        # Recuperar historial de la DB
+        history = get_session_messages_from_db(session_id)
         manager.sessions_context[session_id] = history
-
-        # Enviar historial serializado
-        await manager.send_personal_message({
-            "reply": serialize_messages(history),
-            "session_id": session_id
-        }, session_id)
 
         while True:
             data = await websocket.receive_json()
@@ -134,17 +123,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             # Guardar mensaje del usuario
             save_message(session_id, "user", user_text)
-            manager.sessions_context[session_id].append({
+            supabase.table("messages").insert({
+                "id": str(uuid.uuid4()),
+                "session_id": session_id,
                 "sender": "user",
                 "content": user_text,
-                "created_at": datetime.utcnow().isoformat()
-            })
+                "created_at": datetime.now().isoformat()
+            }).execute()
 
-            # Preparar historial para Groq
+            # Preparar historial para IA
+            history = manager.sessions_context[session_id]
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            messages_for_groq = system_messages + [
-                map_sender_to_role(m) for m in manager.sessions_context[session_id]
-            ]
+            messages_for_groq = system_messages + history + [{"role": "user", "content": user_text}]
 
             try:
                 response = groq_client.chat.completions.create(
@@ -158,15 +148,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Guardar respuesta
-                save_message(session_id, "miller", reply_text)
-                manager.sessions_context[session_id].append({
-                    "sender": "miller",
+                # Guardar respuesta de Miller
+                save_message(session_id, "assistant", reply_text)
+                supabase.table("messages").insert({
+                    "id": str(uuid.uuid4()),
+                    "session_id": session_id,
+                    "sender": "assistant",
                     "content": reply_text,
-                    "created_at": datetime.utcnow().isoformat()
-                })
+                    "created_at": datetime.now().isoformat()
+                }).execute()
 
-                # Enviar en burbujas
+                # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
                 await enviar_burbujas_con_delay(burbujas, session_id)
 
