@@ -1,5 +1,5 @@
 from datetime import datetime
-from db.supabase_client import supabase
+from millercore.db.supabase_client import supabase
 
 # -------------------------------
 # BACKUPS Y SESIONES INACTIVAS
