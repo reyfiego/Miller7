@@ -5,9 +5,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
-from .db.models import save_message, get_session_messages, crear_sesion
+from millercore.db.models import save_message, get_session_messages, crear_sesion
 from millercore.ia.memoria import backup_sesion
-from.db .supabase_client import supabase
+from millercore.db.supabase_client import supabase
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -71,7 +71,7 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
 # ------------------------------
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    # Crear sesión si no existe
+    # Crear sesión si no existe o es invitado
     if not session_id or session_id == "guest":
         res, session_id = crear_sesion(user_id=None, context=[])
         print(f"Nuevo session_id generado para invitado: {session_id}")
