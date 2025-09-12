@@ -50,7 +50,7 @@ def obtener_sesiones(user_id):
     return supabase.table("sessions").select("*").eq("user_id", user_id).execute()
 
 # --- Mensajes ---
-def save_message(session_id, sender, content, emotion=None):
+def save_message(session_id, sender, content, emotion=None, user_id=None):
     # Guardar en messages
     supabase.table("messages").insert({
         "id": str(uuid.uuid4()),
@@ -61,20 +61,22 @@ def save_message(session_id, sender, content, emotion=None):
         "created_at": datetime.now().isoformat()
     }).execute()
 
-    # Debug 1: imprimir session_id
     print(f"[DEBUG] Guardando en contexto de sesión {session_id}")
 
     # Leer contexto
     session = supabase.table("sessions").select("context").eq("id", session_id).execute()
+
     if not session.data:
-        print(f"[DEBUG] No se encontró sesión con id {session_id}")
-        return
-    
+        # Si no existe, crearla automáticamente
+        print(f"[DEBUG] No se encontró sesión con id {session_id}, creando nueva sesión")
+        guardar_sesion(session_id=session_id, context=[])
+        session = supabase.table("sessions").select("context").eq("id", session_id).execute()
+
     current_context = session.data[0]["context"] or []
     if not isinstance(current_context, list):
         current_context = []
 
-    # Agregar
+    # Agregar mensaje al contexto
     current_context.append({
         "sender": sender,
         "content": content,
@@ -82,11 +84,10 @@ def save_message(session_id, sender, content, emotion=None):
         "created_at": datetime.now().isoformat()
     })
 
-    # Update
+    # Actualizar sesión
     res = supabase.table("sessions").update({
         "context": current_context,
         "updated_at": datetime.now().isoformat()
     }).eq("id", session_id).execute()
 
-    # Debug 2: mostrar resultado
     print(f"[DEBUG] Contexto actualizado → {res.data}")
