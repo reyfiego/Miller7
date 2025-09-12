@@ -9,11 +9,9 @@ let userId = localStorage.getItem("miller_user_id");
 
 let sessionId;
 if (loggedIn) {
-  // Siempre nuevo session_id al iniciar sesión
   sessionId = crypto.randomUUID();
   localStorage.setItem(SESSION_KEY, sessionId);
 } else {
-  // Invitado: usar existente o crear uno
   sessionId = localStorage.getItem(SESSION_KEY);
   if (!sessionId) {
     sessionId = crypto.randomUUID();
@@ -24,8 +22,6 @@ if (loggedIn) {
 // -------------------------
 // ELEMENTOS DEL DOM
 // -------------------------
-// (igual que antes, no se modifican)
-
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
 const input = document.getElementById("prompt");
@@ -53,8 +49,6 @@ const registerForm = document.getElementById("register-form");
 // -------------------------
 // FUNCIONES DE UI
 // -------------------------
-// (igual que antes, no se modifican)
-
 function openElement(element) {
   element.classList.add("active");
   element.classList.remove("closing");
@@ -124,7 +118,8 @@ function connectWS() {
 
   ws.onopen = async () => {
     console.log("Conectado al WebSocket");
-    // Cargar mensajes previos desde backend
+
+    // Cargar mensajes previos
     try {
       const res = await fetch(`/session/${sessionId}/messages`);
       const data = await res.json();
@@ -206,11 +201,6 @@ function delay(ms) {
 }
 
 // -------------------------
-// MICROFONO
-// -------------------------
-// (igual que antes, sin cambios)
-
-// -------------------------
 // LOGIN / REGISTRO
 // -------------------------
 loginForm.addEventListener("submit", async (e) => {
@@ -243,7 +233,7 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("miller_user_id", userId);
       closeElement(loginPanel);
 
-      // Reconectar WebSocket con nueva sesión
+      // Reconectar WebSocket
       if (ws) ws.close();
       connectWS();
     } else {
