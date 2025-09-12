@@ -1,57 +1,80 @@
+import os
 from datetime import datetime
-from millercore.db.supabase_client import supabase
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# -------------------------------
+# USUARIOS
+# -------------------------------
+def crear_usuario(email: str, hashed_password: str, role: str = "user"):
+    """Crea un nuevo usuario."""
+    data = {
+        "email": email,
+        "password": hashed_password,
+        "role": role,
+        "created_at": datetime.utcnow()
+    }
+    response = supabase.table("users").insert(data).execute()
+    return response.data[0]["id"]
+
+def obtener_usuario(email: str):
+    """Busca usuario por email."""
+    response = supabase.table("users").select("*").eq("email", email).execute()
+    return response.data[0] if response.data else None
+
+# -------------------------------
+# SESIONES
+# -------------------------------
+def crear_sesion(user_id: str, contexto: dict) -> str:
+    """Crea una sesión nueva."""
+    data = {
+        "user_id": user_id,
+        "context": contexto,
+        "is_active": True,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    response = supabase.table("sessions").insert(data).execute()
+    return response.data[0]["id"]
+
+def cerrar_sesion(session_id: str):
+    """Cierra sesión marcándola como inactiva y haciendo backup."""
+    supabase.table("sessions").update({
+        "is_active": False,
+        "updated_at": datetime.utcnow()
+    }).eq("id", session_id).execute()
+    backup_sesion(session_id)
 
 # -------------------------------
 # MENSAJES
 # -------------------------------
-def get_session_messages(session_id: str):
-    """Obtiene todos los mensajes de una sesión ordenados por fecha."""
-    res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
-    messages = []
-    for m in res.data or []:
-        m_copy = m.copy()
-        # Normalizar created_at a ISO string
-        if isinstance(m_copy.get("created_at"), datetime):
-            m_copy["created_at"] = m_copy["created_at"].isoformat()
-        elif m_copy.get("created_at") and not isinstance(m_copy.get("created_at"), str):
-            try:
-                m_copy["created_at"] = str(m_copy["created_at"])
-            except Exception:
-                m_copy["created_at"] = None
-        messages.append(m_copy)
-
-    return sorted(messages, key=lambda x: x.get("created_at") or "")
-
-
-# -------------------------------
-# BACKUPS Y SESIONES INACTIVAS
-# -------------------------------
-def backup_sesion(session_id: str):
-    """Copia toda la sesión activa a session_backups"""
-    res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
-    mensajes = res.data if res.data else []
-
-    # Convertir fechas a ISO string
-    for m in mensajes:
-        if isinstance(m.get("created_at"), datetime):
-            m["created_at"] = m["created_at"].isoformat()
-
+def guardar_mensaje(session_id: str, sender: str, content: str, emotion: str = None):
+    """Guarda un mensaje dentro de una sesión"""
     data = {
         "session_id": session_id,
-        "full_log": mensajes,
-        "created_at": datetime.utcnow().isoformat()
+        "sender": sender,
+        "content": content,
+        "emotion": emotion,
+        "created_at": datetime.utcnow()
+    }
+    supabase.table("messages").insert(data).execute()
+
+# -------------------------------
+# BACKUPS
+# -------------------------------
+def backup_sesion(session_id: str):
+    """Copia toda la sesión en session_backups"""
+    messages = supabase.table("messages").select("*").eq("session_id", session_id).execute().data
+    data = {
+        "session_id": session_id,
+        "full_log": messages,
+        "created_at": datetime.utcnow()
     }
     supabase.table("session_backups").insert(data).execute()
-
-
-def cerrar_sesion(session_id: str):
-    """Marca la sesión como inactiva y hace backup"""
-    supabase.table("sessions").update({
-        "is_active": False,
-        "updated_at": datetime.utcnow().isoformat()
-    }).eq("id", session_id).execute()
-
-    try:
-        backup_sesion(session_id)
-    except Exception as e:
-        print(f"[{session_id}] Error cerrando sesión:", repr(e))
