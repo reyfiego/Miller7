@@ -182,12 +182,52 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 } else { micBtn.disabled = true; micBtn.title = "Tu navegador no soporta reconocimiento de voz"; }
 
 // -------------------------
-// LOGIN / REGISTRO
+// LOGIN / REGISTRO SIN REFRESH
 // -------------------------
+loginForm.addEventListener("submit", async (e) => {
+    e.preventDefault(); // Evita refresh
+    const formData = new FormData(loginForm);
+    const email = formData.get("email").trim();
+    const password = formData.get("password").trim();
+    if (!email || !password) return alert("Completa todos los campos.");
 
+    try {
+        const res = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            loggedIn = true;
+            userId = data.user_id;
+
+            // Guardar credenciales en localStorage
+            localStorage.setItem(LOGGED_KEY, "true");
+            localStorage.setItem(USER_ID_KEY, userId);
+
+            // Cambiar sessionId al UUID del usuario
+            sessionId = userId;
+            localStorage.setItem(SESSION_KEY, sessionId);
+
+            // Reconectar WebSocket con sessionId actualizado
+            if (ws) ws.close();
+            connectWS();
+
+            closeElement(loginPanel);
+            addBubble("ai", "✅ Sesión iniciada correctamente.");
+        } else {
+            alert(data.message || "Error en inicio de sesión");
+        }
+    } catch (err) {
+        console.error("Error al conectar con el servidor:", err);
+        alert("Error al conectar con el servidor");
+    }
+});
 
 registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // evitamos el refresh
+    e.preventDefault(); // Evita refresh
     const formData = new FormData(registerForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
@@ -202,46 +242,13 @@ registerForm.addEventListener("submit", async (e) => {
         const data = await res.json();
 
         if (data.success) {
-            alert("¡Registro exitoso! Ahora puedes iniciar sesión.");
-            // Opcional: cerrar panel de registro
+            addBubble("ai", "✅ Registro exitoso. Ahora puedes iniciar sesión.");
             closeElement(registerPanel);
         } else {
             alert(data.message || "Error en el registro");
         }
     } catch (err) {
         console.error("Error al registrar usuario:", err);
-        alert("Error al conectar con el servidor");
-    }
-});
-
-loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault(); // prevenimos refresco automático mientras validamos
-    const formData = new FormData(loginForm);
-    const email = formData.get("email").trim();
-    const password = formData.get("password").trim();
-    if (!email || !password) return alert("Completa todos los campos.");
-
-    try {
-        const res = await fetch("/login", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, password })
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            // Guardar credenciales en localStorage
-            localStorage.setItem(LOGGED_KEY, "true");
-            localStorage.setItem(USER_ID_KEY, data.user_id);
-            localStorage.setItem(SESSION_KEY, data.user_id); // ⚡ sessionId fijo del usuario
-
-            // ⚡ refrescar página para iniciar sesión con la sesión cargada
-            window.location.reload();
-        } else {
-            alert(data.message || "Error en inicio de sesión");
-        }
-    } catch (err) {
-        console.error("Error al conectar con el servidor:", err);
         alert("Error al conectar con el servidor");
     }
 });
