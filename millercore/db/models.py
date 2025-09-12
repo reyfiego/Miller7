@@ -80,7 +80,11 @@ def save_message(session_id, sender, content, emotion=None):
 
 def get_session_messages(session_id):
     """Retorna todos los mensajes de una sesión, con datetime serializable."""
-    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", "asc").execute()
+    res = supabase.table("messages") \
+                  .select("*") \
+                  .eq("session_id", session_id) \
+                  .order("created_at", ascending=True) \
+                  .execute()
     if not res.data:
         return []
 
