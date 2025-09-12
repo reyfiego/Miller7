@@ -11,12 +11,12 @@ let userId = localStorage.getItem(USER_ID_KEY);
 
 // Si no hay sessionId, crear uno aleatorio (guest)
 if (!sessionId) {
-    sessionId = `guest-${crypto.randomUUID()}`;
+    sessionId = crypto.randomUUID();
     localStorage.setItem(SESSION_KEY, sessionId);
 }
 
 // -------------------------
-// ELEMENTOS DEL DOM
+// FRONTEND UI ELEMENTS
 // -------------------------
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
@@ -43,7 +43,7 @@ const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// UTILS
+// HELPER FUNCTIONS
 // -------------------------
 function openElement(element) {
     element.classList.add("active");
@@ -75,9 +75,7 @@ panelOverlay.addEventListener("click", () => {
 });
 infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { 
-    if (e.target === modal) closeElement(modal); 
-});
+window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
 
 function addBubble(sender, text) {
     const bubble = document.createElement("div");
@@ -89,22 +87,16 @@ function addBubble(sender, text) {
 
 function escapeHtml(str) {
     return str.replace(/[&<>"']/g, (s) => ({ 
-        '&': '&amp;', 
-        '<': '&lt;', 
-        '>': '&gt;', 
-        '"': '&quot;', 
-        "'": '&#039;' 
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' 
     }[s]));
 }
 
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+let ws;
+let burbujasMostradas = new Set();
 
 // -------------------------
 // WEBSOCKET
 // -------------------------
-let ws;
-let burbujasMostradas = new Set();
-
 function connectWS() {
     if (ws && ws.readyState !== WebSocket.CLOSED) return;
 
@@ -116,7 +108,8 @@ function connectWS() {
 
         // Cargar historial previo
         try {
-            const res = await fetch(`/session/${sessionId}/messages`);
+            const realSessionId = loggedIn ? userId : sessionId; // ⚡ solo UUID real para usuarios logeados
+            const res = await fetch(`/session/${realSessionId}/messages`);
             const data = await res.json();
             if (Array.isArray(data.messages)) {
                 data.messages.forEach(msg => {
@@ -150,8 +143,6 @@ function connectWS() {
     ws.onerror = (err) => { console.error("Error WS:", err); ws.close(); };
 }
 
-connectWS();
-
 function send(text) {
     addBubble("you", text);
     input.value = "";
@@ -163,15 +154,9 @@ function send(text) {
     }
 }
 
-function reconnectWS() {
-    if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();
-}
-
-form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (text) send(text);
-});
+function reconnectWS() { if (!ws || ws.readyState === WebSocket.CLOSED) connectWS(); }
+form.addEventListener("submit", (e) => { e.preventDefault(); const text = input.value.trim(); if (text) send(text); });
+function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // -------------------------
 // MICROFONO
@@ -194,10 +179,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
     confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
     cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-} else {
-    micBtn.disabled = true;
-    micBtn.title = "Tu navegador no soporta reconocimiento de voz";
-}
+} else { micBtn.disabled = true; micBtn.title = "Tu navegador no soporta reconocimiento de voz"; }
 
 // -------------------------
 // LOGIN / REGISTRO
@@ -220,15 +202,16 @@ loginForm.addEventListener("submit", async (e) => {
             loggedIn = true;
             userId = data.user_id;
 
+            // Guardar credenciales
             localStorage.setItem(LOGGED_KEY, "true");
             localStorage.setItem(USER_ID_KEY, userId);
 
             // ⚡ Cambiar sessionId a fijo de usuario y reconectar WS
-            sessionId = `user-${userId}`;
+            sessionId = userId; 
             localStorage.setItem(SESSION_KEY, sessionId);
 
-            ws.close();
-            connectWS();
+            if (ws) ws.close();   // cerrar conexión anterior
+            connectWS();          // reconectar con sessionId correcto
 
             closeElement(loginPanel);
         } else {
@@ -238,3 +221,6 @@ loginForm.addEventListener("submit", async (e) => {
         alert("Error al conectar con el servidor");
     }
 });
+
+// Inicializamos WS al cargar
+connectWS();
