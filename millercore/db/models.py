@@ -79,6 +79,13 @@ def save_message(session_id, sender, content, emotion=None):
     }).execute()
 
 def get_session_messages(session_id):
-    """Obtiene mensajes de una sesión, ordenados por fecha ascendente."""
-    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", desc=False).execute()
-    return res.data if res.data else []
+    """Retorna todos los mensajes de una sesión, con datetime serializable."""
+    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", "asc").execute()
+    if not res.data:
+        return []
+
+    # Convertir datetime a string para JSON
+    for msg in res.data:
+        if isinstance(msg.get("created_at"), datetime):
+            msg["created_at"] = msg["created_at"].isoformat()
+    return res.data
