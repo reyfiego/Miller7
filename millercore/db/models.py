@@ -4,24 +4,13 @@ import uuid
 from datetime import datetime
 
 # --- Usuarios ---
-def crear_usuario(email, password):
-    hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    return supabase.table("users").insert({
-        "id": str(uuid.uuid4()),
-        "email": email,
-        "password": hashed
-    }).execute()
-
-def autenticar_usuario(email, password):
-    user = supabase.table("users").select("*").eq("email", email).execute()
-    if user.data and bcrypt.checkpw(password.encode(), user.data[0]['password'].encode()):
-        return user.data[0]
-    return None
-
-# --- Sesiones ---
-def crear_sesion(user_id=None, context=None):
+def crear_sesion(user_id=None, context=None, first_message=None):
     """Crea una nueva sesión y retorna el session_id"""
     session_id = str(uuid.uuid4())
+
+    # Si hay un mensaje inicial, lo agregamos al contexto
+    if first_message:
+        context = [first_message]
 
     # Verificar si el usuario existe
     if user_id:
@@ -36,6 +25,7 @@ def crear_sesion(user_id=None, context=None):
         "created_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat()
     }).execute(), session_id
+
 
 
 
