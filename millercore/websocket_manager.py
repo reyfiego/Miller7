@@ -1,15 +1,16 @@
 import os
 import asyncio
 import random
+import uuid
+from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
+from dotenv import load_dotenv
+
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
 from .db.models import save_message
 from .db.supabase_client import supabase
-from dotenv import load_dotenv
-from datetime import datetime
-import uuid
 
 load_dotenv()
 
@@ -20,7 +21,6 @@ if not API_KEY:
 
 groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
-
 
 # ------------------------------
 # Manejo de conexiones y sesiones
@@ -49,33 +49,47 @@ class ConnectionManager:
         if websocket:
             try:
                 if "reply" in message:
+                    # Prefijo [ws] para cada burbuja
                     message["reply"] = [f"[ws] {b}" for b in message["reply"]]
                     self.burbujas_enviadas[session_id].update(message["reply"])
                 await websocket.send_json(message)
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
-
 manager = ConnectionManager()
-
 
 # ------------------------------
 # Funciones auxiliares
 # ------------------------------
 async def enviar_burbujas_con_delay(burbujas, session_id):
     for b in burbujas:
-        if b not in manager.burbujas_enviadas[session_id]:
+        if f"[ws] {b}" not in manager.burbujas_enviadas[session_id]:
             await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
             await asyncio.sleep(random.uniform(1, 3))  # delay aleatorio
 
-
-# Recuperar mensajes de la DB
 def get_session_messages_from_db(session_id):
-    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at").execute()
+    res = (
+        supabase.table("messages")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at")
+        .execute()
+    )
     if res.data:
         return [{"role": m["sender"], "content": m["content"]} for m in res.data]
     return []
 
+def ensure_session_exists(session_id: str):
+    """Hotfix: asegurar que la sesión exista antes de insertar mensajes"""
+    existing = supabase.table("sessions").select("id").eq("id", session_id).execute()
+    if not existing.data:
+        supabase.table("sessions").insert({
+            "id": session_id,
+            "user_id": None,
+            "context": [],
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat()
+        }).execute()
 
 # ------------------------------
 # WebSocket endpoint
@@ -84,23 +98,15 @@ def get_session_messages_from_db(session_id):
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
     await manager.connect(websocket, session_id)
 
+    # Hotfix: verificar o crear sesión al conectar
+    ensure_session_exists(session_id)
+
     # Saludo inicial
     saludo = get_random_greeting()
     if saludo:
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # --- Verificar o crear sesión ---
-        existing = supabase.table("sessions").select("id").eq("id", session_id).execute()
-        if not existing.data:
-            supabase.table("sessions").insert({
-                "id": session_id,
-                "user_id": None,
-                "context": [],
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat()
-            }).execute()
-
         # Recuperar historial de la DB
         history = get_session_messages_from_db(session_id)
         manager.sessions_context[session_id] = history
@@ -108,7 +114,6 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
-            user_id = data.get("user_id")  # si hay sesión de usuario
 
             if not user_text:
                 await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
@@ -127,7 +132,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # Preparar historial para IA
             history = manager.sessions_context[session_id]
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            messages_for_groq = system_messages + history
+            messages_for_groq = system_messages + history + [{"role": "user", "content": user_text}]
 
             try:
                 response = groq_client.chat.completions.create(
