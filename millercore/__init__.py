@@ -1,3 +1,5 @@
+init
+
 import os
 import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -9,23 +11,14 @@ from pydantic import BaseModel
 import speech_recognition as sr
 from groq import Groq
 
-from millercore.db.models import (
-    crear_usuario,
-    autenticar_usuario,
-    guardar_sesion,
-    crear_sesion,
-    save_message
-)
-from millercore.cerebro.memoria import (
-    get_session_messages,
-    cerrar_sesion,
-    backup_sesion
-)
-from millercore.websocket_manager import router as websocket_router
+from .db.models import crear_usuario, autenticar_usuario, guardar_sesion, obtener_sesiones
+from .websocket_manager import router as websocket_router
 
 load_dotenv()
 
-# ------------------------- CONFIGURACIÓN GROQ -------------------------
+# -------------------------
+# CONFIGURACIÓN GROQ
+# -------------------------
 API_KEY = os.getenv("GROQ_API_KEY")
 MODEL_ID = os.getenv("GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct")
 
@@ -35,13 +28,17 @@ if not API_KEY:
 else:
     groq_client = Groq(api_key=API_KEY)
 
-# ------------------------- APP FASTAPI -------------------------
+# -------------------------
+# APP FASTAPI
+# -------------------------
 app = FastAPI()
 app.include_router(websocket_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# ------------------------- Pydantic Models -------------------------
+# -------------------------
+# Pydantic Models
+# -------------------------
 class User(BaseModel):
     email: str
     password: str
@@ -50,7 +47,9 @@ class SessionData(BaseModel):
     user_id: str
     contexto: str
 
-# ------------------------- ENDPOINTS HTTP -------------------------
+# -------------------------
+# ENDPOINTS HTTP
+# -------------------------
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
@@ -86,17 +85,11 @@ def login(user: User):
 
 @app.post("/session/")
 def nueva_sesion(data: SessionData):
-    # Crea o actualiza la sesión
-    session_id = crear_sesion(data.user_id, context=[data.contexto])
-    return {"success": True, "session_id": session_id}
+    guardar_sesion(data.user_id, data.contexto)
+    return {"success": True, "message": "Sesión guardada"}
 
 @app.get("/session/{session_id}/messages")
 def get_session_messages_endpoint(session_id: str):
-    messages = get_session_messages(session_id)
+    sesiones = obtener_sesiones(session_id)
+    messages = [{"sender": "user", "content": s["contexto"]} for s in sesiones.data] if sesiones.data else []
     return {"messages": messages}
-
-# Opcional: endpoint para cerrar sesión y hacer backup
-@app.post("/session/{session_id}/close")
-def cerrar_sesion_endpoint(session_id: str):
-    cerrar_sesion(session_id)
-    return {"success": True, "message": "Sesión cerrada y respaldada"}

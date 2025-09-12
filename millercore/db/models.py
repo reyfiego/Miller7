@@ -1,57 +1,67 @@
-import uuid
-from datetime import datetime
 from .supabase_client import supabase
 import bcrypt
+import uuid
+from datetime import datetime
 
-# ------------------------------- USUARIOS -------------------------------
-def crear_usuario(email: str, password: str):
+# --- Usuarios ---
+def crear_usuario(email, password):
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
-    data = {
+    return supabase.table("users").insert({
         "id": str(uuid.uuid4()),
         "email": email,
-        "password": hashed,
-        "created_at": datetime.utcnow()
-    }
-    res = supabase.table("users").insert(data).execute()
-    return res.data[0] if res.data else None
+        "password": hashed
+    }).execute()
 
-def autenticar_usuario(email: str, password: str):
+def autenticar_usuario(email, password):
     user = supabase.table("users").select("*").eq("email", email).execute()
-    if user.data and bcrypt.checkpw(password.encode(), user.data[0]["password"].encode()):
+    if user.data and bcrypt.checkpw(password.encode(), user.data[0]['password'].encode()):
         return user.data[0]
     return None
 
-def obtener_usuario(email: str):
-    res = supabase.table("users").select("*").eq("email", email).execute()
-    return res.data[0] if res.data else None
+# --- Sesiones ---
+def crear_sesion(user_id=None, context=None):
+    """Crea una nueva sesión y retorna el session_id"""
+    session_id = str(uuid.uuid4())
 
-# ------------------------------- SESIONES -------------------------------
+    # Verificar si el usuario existe
+    if user_id:
+        user_check = supabase.table("users").select("id").eq("id", user_id).execute()
+        if not user_check.data:  # usuario no existe → tratar como anónimo
+            user_id = None
 
+    return supabase.table("sessions").insert({
+        "id": session_id,
+        "user_id": user_id,
+        "context": context or [],
+        "created_at": datetime.now().isoformat(),
+        "updated_at": datetime.now().isoformat()
+    }).execute(), session_id
 
 def guardar_sesion(session_id, context):
-    res = supabase.table("sessions").update({
+    """Actualiza el contexto de la sesión"""
+    return supabase.table("sessions").update({
         "context": context,
-        "updated_at": datetime.utcnow()
+        "updated_at": datetime.now().isoformat()
     }).eq("id", session_id).execute()
-    return res.data
 
 def obtener_sesiones(user_id):
-    res = supabase.table("sessions").select("*").eq("user_id", user_id).execute()
-    return res.data if res.data else []
+    return supabase.table("sessions").select("*").eq("user_id", user_id).execute()
 
-# ------------------------------- MENSAJES -------------------------------
+# --- Mensajes ---
 def save_message(session_id, sender, content, emotion=None):
-    data = {
+    return supabase.table("messages").insert({
+        "id": str(uuid.uuid4()),
         "session_id": session_id,
-        "sender": sender,  # 👈 columna real
+        "sender": sender,
         "content": content,
         "emotion": emotion,
-        "created_at": datetime.utcnow().isoformat()
-    }
-    supabase.table("messages").insert(data).execute()
+        "created_at": datetime.now().isoformat()
+    }).execute()
 
-
-
+def get_session_messages(session_id):
+    # Orden correcto usando 'asc' como string
+    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", ascending="asc").execute()
+    return res.data if res.data else []
 
 # -------------------------------
 # SESIONES

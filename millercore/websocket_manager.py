@@ -1,15 +1,15 @@
 import os
-import uuid
 import asyncio
 import random
+import uuid
+from datetime import datetime
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
+from dotenv import load_dotenv
+
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
-from millercore.db.models import save_message, crear_sesion
-from millercore.cerebro.memoria import get_session_messages, cerrar_sesion
-from dotenv import load_dotenv
-from datetime import datetime
+from .db.models import save_message
 from .db.supabase_client import supabase
 
 
