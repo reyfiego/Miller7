@@ -1,5 +1,5 @@
 from datetime import datetime
-from .supabase_client import supabase
+from db.supabase_client import supabase
 
 # -------------------------------
 # BACKUPS Y SESIONES INACTIVAS
