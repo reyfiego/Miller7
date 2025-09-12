@@ -9,8 +9,9 @@ from pydantic import BaseModel
 import speech_recognition as sr
 from groq import Groq
 
-from .db.models import crear_usuario, autenticar_usuario, guardar_sesion, obtener_sesiones
-from .websocket_manager import router as websocket_router
+from millercore.db.models import crear_usuario, autenticar_usuario, guardar_sesion, obtener_sesiones
+from millercore.websocket_manager import router as websocket_router
+
 
 load_dotenv()
 
