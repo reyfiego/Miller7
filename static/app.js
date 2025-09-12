@@ -2,22 +2,64 @@
 // SESIÓN
 // -------------------------
 const SESSION_KEY = "miller_session_id";
-const LOGGED_KEY = "miller_logged_in";
-const USER_ID_KEY = "miller_user_id";
+let sessionId = localStorage.getItem(SESSION_KEY);
+let loggedIn = localStorage.getItem("miller_logged_in") === "true";
+let userId = localStorage.getItem("miller_user_id");
 
-let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
-let userId = localStorage.getItem(USER_ID_KEY);
-let sessionId;
-
-// --- Determinar sessionId ---
-if (loggedIn && userId) {
-    // Usuario logeado: sesión fija por usuario
-    sessionId = `user-${userId}`;
-    localStorage.setItem(SESSION_KEY, sessionId);
-} else {
-    // Guest: generar nuevo sessionId cada refresh
+// Si no hay sessionId, crear uno aleatorio (guest)
+if (!sessionId) {
     sessionId = crypto.randomUUID();
     localStorage.setItem(SESSION_KEY, sessionId);
+}
+
+// -------------------------
+// Al logearse
+// -------------------------
+async function handleLogin(email, password) {
+    const res = await fetch("/login", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({email, password})
+    });
+    const data = await res.json();
+    if (data.success) {
+        loggedIn = true;
+        userId = data.user_id; // este es UUID real de la DB
+        localStorage.setItem("miller_logged_in", "true");
+        localStorage.setItem("miller_user_id", userId);
+
+        // Actualizamos sessionId a la del usuario logeado
+        sessionId = userId;
+        localStorage.setItem(SESSION_KEY, sessionId);
+
+        // Refrescar la página para que el WebSocket se reconecte con sessionId correcto
+        window.location.reload();
+    } else {
+        alert(data.message || "Error en inicio de sesión");
+    }
+}
+
+// -------------------------
+// Abrir WebSocket con sessionId correcto
+// -------------------------
+const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${protocol}://${window.location.host}/ws/chat/${sessionId}`);
+
+ws.onopen = () => console.log("Conectado con sessionId:", sessionId);
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log("Mensaje recibido:", data);
+};
+
+// -------------------------
+// Enviar mensaje
+// -------------------------
+function sendMessage(text) {
+    if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ message: text }));
+    } else {
+        console.log("WebSocket cerrado. Intentando reconectar...");
+    }
 }
 
 // -------------------------
