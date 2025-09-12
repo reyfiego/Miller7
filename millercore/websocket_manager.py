@@ -5,7 +5,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
-from .db.models import guardar_sesion, crear_sesion, obtener_sesiones
+from .db.models import guardar_sesion, crear_sesion
 from .db.supabase_client import supabase
 from dotenv import load_dotenv
 import uuid
@@ -74,9 +74,10 @@ def save_message(session_id, role, content):
     manager.sessions_context.setdefault(session_id, []).append({"role": role, "content": content})
 
 
-# Recuperar mensajes de la DB en orden correcto
+# Recuperar mensajes de la DB
 def get_session_messages_from_db(session_id):
-    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at.asc").execute()
+    # ❌ Corrección: no usar ascending ni .asc, solo pasar el nombre de columna
+    res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at").execute()
     if res.data:
         return [{"role": m["sender"], "content": m["content"]} for m in res.data]
     return []
@@ -111,8 +112,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # Guardar sesión en DB si es usuario registrado
             if user_id:
                 try:
-                    # Crear sesión si no existe
-                    crear_sesion(user_id=user_id, session_id=session_id, context="chat")
+                    crear_sesion(user_id=user_id, context="chat")
                 except Exception:
                     pass  # sesión ya creada, ignorar
             else:

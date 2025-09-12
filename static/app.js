@@ -9,6 +9,7 @@ if (!sessionId) {
 }
 
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
+let userId = localStorage.getItem("miller_user_id"); // guardamos user_id si está logueado
 
 // -------------------------
 // ELEMENTOS DEL DOM
@@ -114,7 +115,11 @@ function connectWS() {
       const res = await fetch(`/session/${sessionId}/messages`);
       const data = await res.json();
       if (Array.isArray(data.messages)) {
-        data.messages.forEach(msg => addBubble(msg.sender === "user" ? "you" : "ai", msg.content));
+        data.messages.forEach(msg => {
+          const sender = msg.sender === "user" ? "you" : "ai";
+          addBubble(sender, msg.content);
+          burbujasMostradas.add(msg.content);
+        });
       }
     } catch (err) {
       console.warn("No se pudieron cargar mensajes previos:", err);
@@ -162,7 +167,10 @@ function send(text) {
   addBubble("you", text);
   input.value = "";
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify({ message: text })); 
+    ws.send(JSON.stringify({ 
+      message: text,
+      user_id: loggedIn ? userId : null
+    })); 
   } else {
     addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
     reconnectWS();
@@ -250,7 +258,9 @@ loginForm.addEventListener("submit", async (e) => {
     if (data.success) {
       alert("Inicio de sesión exitoso");
       loggedIn = true;
+      userId = data.user_id;
       localStorage.setItem("miller_logged_in", "true");
+      localStorage.setItem("miller_user_id", userId);
       closeElement(loginPanel);
     } else {
       alert(data.message || "Error en inicio de sesión");
