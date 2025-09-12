@@ -62,35 +62,3 @@ def get_session_messages(session_id):
     # Orden correcto usando 'asc' como string
     res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", ascending="asc").execute()
     return res.data if res.data else []
-
-# -------------------------------
-# SESIONES
-# -------------------------------
-def crear_sesion(user_id=None, context=None):
-    """Crea una nueva sesión en la tabla sessions"""
-    session_data = {
-        "user_id": user_id,
-        "context": context or [],
-        "is_active": True,
-        "created_at": datetime.utcnow().isoformat(),
-        "updated_at": datetime.utcnow().isoformat()
-    }
-    res = supabase.table("sessions").insert(session_data).execute()
-    if res.data:
-        return res.data[0]["id"]
-    return None
-
-
-# -------------------------------
-# MENSAJES
-# -------------------------------
-def save_message(session_id: str, role: str, content: str):
-    """Guarda un mensaje en la tabla messages"""
-    message_data = {
-        "session_id": session_id,
-        "role": role,
-        "content": content,
-        "created_at": datetime.utcnow().isoformat()
-    }
-    supabase.table("messages").insert(message_data).execute()
-

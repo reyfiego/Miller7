@@ -12,8 +12,6 @@ from .corazon import SYSTEM_ROLE, get_random_greeting
 from .db.models import save_message
 from .db.supabase_client import supabase
 
-
-
 load_dotenv()
 
 API_KEY = os.getenv("GROQ_API_KEY")
