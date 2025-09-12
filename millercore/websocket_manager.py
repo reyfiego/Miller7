@@ -117,7 +117,9 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     # Crear sesión en DB si es logeado
     if is_logged_in:
-        ensure_session_exists(session_id)
+        # ⚡ Pasamos session_id como user_id si ya corresponde al usuario real
+        ensure_session_exists(session_id, user_id=session_id)
+        
         # Recuperar contexto guardado en DB
         db_session = supabase.table("sessions").select("context").eq("id", session_id).execute()
         if db_session.data and isinstance(db_session.data[0].get("context"), list):
