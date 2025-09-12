@@ -36,11 +36,10 @@ def crear_sesion(user_id=None, context=None):
     """Crea una nueva sesión activa y retorna session_id."""
     session_id = str(uuid.uuid4())
     
-    # Verificar existencia del usuario
     if user_id:
         user_check = supabase.table("users").select("id").eq("id", user_id).execute()
         if not user_check.data:
-            user_id = None  # tratar como invitado
+            user_id = None
 
     data = {
         "id": session_id,
@@ -79,18 +78,20 @@ def save_message(session_id, sender, content, emotion=None):
     }).execute()
 
 def get_session_messages(session_id):
-    """Retorna todos los mensajes de una sesión, con datetime serializable para JSON."""
-    # .order() compatible con tu versión de supabase-py
-    res = supabase.table("messages") \
-                  .select("*") \
-                  .eq("session_id", session_id) \
-                  .order("created_at", "asc") \
-                  .execute()
+    """
+    Retorna todos los mensajes de una sesión.
+    Convierte datetime a string ISO para JSON y ordena por created_at.
+    """
+    res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
     if not res.data:
         return []
 
-    # Convertir datetime a string para JSON
-    for msg in res.data:
-        if isinstance(msg.get("created_at"), datetime):
-            msg["created_at"] = msg["created_at"].isoformat()
-    return res.data
+    messages = []
+    for m in res.data:
+        m_copy = m.copy()
+        if isinstance(m_copy.get("created_at"), datetime):
+            m_copy["created_at"] = m_copy["created_at"].isoformat()
+        messages.append(m_copy)
+
+    # Ordenar por created_at ascendente
+    return sorted(messages, key=lambda x: x["created_at"])
