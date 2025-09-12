@@ -74,13 +74,12 @@ def save_message(session_id, role, content):
     manager.sessions_context.setdefault(session_id, []).append({"role": role, "content": content})
 
 
-# Recuperar mensajes de la DB en orden
+# Recuperar mensajes de la DB en orden correcto
 def get_session_messages_from_db(session_id):
     res = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", "asc").execute()
     if res.data:
         return [{"role": m["sender"], "content": m["content"]} for m in res.data]
     return []
-
 
 
 # ------------------------------
@@ -96,7 +95,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial de la DB
+        # Recuperar historial de la DB y cargar memoria corta
         history = get_session_messages_from_db(session_id)
         manager.sessions_context[session_id] = history
 
@@ -112,8 +111,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # Guardar sesión en DB si es usuario registrado
             if user_id:
                 try:
-                    # Crear sesión si no existe
-                    crear_sesion(user_id=user_id, session_id=session_id, context="chat")
+                    crear_sesion(user_id=user_id, context="chat")  # crea o ignora si ya existe
                 except Exception:
                     pass  # sesión ya creada, ignorar
             else:
