@@ -2,20 +2,22 @@
 // SESIÓN
 // -------------------------
 const SESSION_KEY = "miller_session_id";
-let loggedIn = localStorage.getItem("miller_logged_in") === "true";
-let sessionId;
-let userId = localStorage.getItem("miller_user_id");
+const LOGGED_KEY = "miller_logged_in";
+const USER_ID_KEY = "miller_user_id";
 
-if (loggedIn) {
-    // Usuario logueado → sesión fija
-    sessionId = localStorage.getItem(SESSION_KEY);
-    if (!sessionId) {
-        sessionId = crypto.randomUUID();
-        localStorage.setItem(SESSION_KEY, sessionId);
-    }
+let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
+let userId = localStorage.getItem(USER_ID_KEY);
+let sessionId;
+
+// --- Determinar sessionId ---
+if (loggedIn && userId) {
+    // Usuario logeado: sesión fija por usuario
+    sessionId = `user-${userId}`;
+    localStorage.setItem(SESSION_KEY, sessionId);
 } else {
-    // Guest → sesión temporal (nuevo ID cada refresh)
+    // Guest: generar nuevo sessionId cada refresh
     sessionId = crypto.randomUUID();
+    localStorage.setItem(SESSION_KEY, sessionId);
 }
 
 // -------------------------
@@ -209,48 +211,40 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 // -------------------------
 // LOGIN / REGISTRO
 // -------------------------
+// Al hacer login exitoso
 loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const formData = new FormData(loginForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
-    if (!email || !password) return alert("Por favor completa todos los campos.");
+    if (!email || !password) return alert("Completa todos los campos.");
 
     try {
-        const res = await fetch("/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
+        const res = await fetch("/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password })
+        });
         const data = await res.json();
         if (data.success) {
-            alert("Inicio de sesión exitoso");
             loggedIn = true;
             userId = data.user_id;
-            localStorage.setItem("miller_logged_in", "true");
-            localStorage.setItem("miller_user_id", userId);
 
-            // Actualizar sessionId al loguearse
-            sessionId = localStorage.getItem(SESSION_KEY) || crypto.randomUUID();
+            // Guardar credenciales
+            localStorage.setItem(LOGGED_KEY, "true");
+            localStorage.setItem(USER_ID_KEY, userId);
+
+            // ⚡ Cambiar sessionId a fijo de usuario y reconectar WS
+            sessionId = `user-${userId}`;
             localStorage.setItem(SESSION_KEY, sessionId);
-            connectWS(); // reconectar con nueva sesión
+
+            ws.close();   // cerrar conexión anterior
+            connectWS();  // reconectar con sessionId fijo
+
             closeElement(loginPanel);
-        } else alert(data.message || "Error en inicio de sesión");
+        } else {
+            alert(data.message || "Error en inicio de sesión");
+        }
     } catch {
         alert("Error al conectar con el servidor");
     }
-});
-
-registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const formData = new FormData(registerForm);
-    const email = formData.get("email").trim();
-    const password = formData.get("password").trim();
-    if (!email || !password) return alert("Por favor completa todos los campos.");
-
-    try {
-        const res = await fetch("/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password }) });
-        const data = await res.json();
-        if (data.success) alert("Registro exitoso, ya puedes iniciar sesión");
-        else alert(data.message || "Error en registro");
-        closeElement(registerPanel);
-    } catch {
-        alert("Error al conectar con el servidor");
-    }
-});
