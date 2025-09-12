@@ -185,7 +185,7 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
 // LOGIN / REGISTRO
 // -------------------------
 loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
+    e.preventDefault(); // prevenimos refresco automático mientras validamos
     const formData = new FormData(loginForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
@@ -197,30 +197,21 @@ loginForm.addEventListener("submit", async (e) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password })
         });
+
         const data = await res.json();
         if (data.success) {
-            loggedIn = true;
-            userId = data.user_id;
-
-            // Guardar credenciales
+            // Guardar credenciales en localStorage
             localStorage.setItem(LOGGED_KEY, "true");
-            localStorage.setItem(USER_ID_KEY, userId);
+            localStorage.setItem(USER_ID_KEY, data.user_id);
+            localStorage.setItem(SESSION_KEY, data.user_id); // ⚡ sessionId fijo del usuario
 
-            // ⚡ Cambiar sessionId a fijo de usuario y reconectar WS
-            sessionId = userId; 
-            localStorage.setItem(SESSION_KEY, sessionId);
-
-            if (ws) ws.close();   // cerrar conexión anterior
-            connectWS();          // reconectar con sessionId correcto
-
-            closeElement(loginPanel);
+            // ⚡ refrescar página para iniciar sesión con la sesión cargada
+            window.location.reload();
         } else {
             alert(data.message || "Error en inicio de sesión");
         }
-    } catch {
+    } catch (err) {
+        console.error("Error al conectar con el servidor:", err);
         alert("Error al conectar con el servidor");
     }
 });
-
-// Inicializamos WS al cargar
-connectWS();
