@@ -14,7 +14,12 @@ from millercore.db.models import (
     autenticar_usuario,
     guardar_sesion,
     crear_sesion,
-    get_session_messages
+    save_message
+)
+from millercore.cerebro.memoria import (
+    get_session_messages,
+    cerrar_sesion,
+    backup_sesion
 )
 from millercore.websocket_manager import router as websocket_router
 
@@ -89,3 +94,9 @@ def nueva_sesion(data: SessionData):
 def get_session_messages_endpoint(session_id: str):
     messages = get_session_messages(session_id)
     return {"messages": messages}
+
+# Opcional: endpoint para cerrar sesión y hacer backup
+@app.post("/session/{session_id}/close")
+def cerrar_sesion_endpoint(session_id: str):
+    cerrar_sesion(session_id)
+    return {"success": True, "message": "Sesión cerrada y respaldada"}

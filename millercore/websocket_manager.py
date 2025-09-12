@@ -3,12 +3,12 @@ import asyncio
 import random
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from groq import Groq
-from datetime import datetime
-from dotenv import load_dotenv
-
-from .corazon import SYSTEM_ROLE, get_random_greeting
 from .burbujas_texto import dividir_burbujas_aleatorio
-from millercore.db.models import save_message, get_session_messages, crear_sesion
+from .corazon import SYSTEM_ROLE, get_random_greeting
+from millercore.db.models import save_message, crear_sesion
+from millercore.cerebro.memoria import get_session_messages, cerrar_sesion
+from dotenv import load_dotenv
+from datetime import datetime
 
 load_dotenv()
 
@@ -22,13 +22,27 @@ router = APIRouter()
 
 
 # ------------------------------
-# Manejo de conexiones y sesiones
+# Serialización de mensajes
+# ------------------------------
+def serialize_messages(messages):
+    """Convierte datetime a string ISO para JSON y ordena ascendentemente."""
+    serialized = []
+    for m in messages:
+        m_copy = m.copy()
+        if "created_at" in m_copy and isinstance(m_copy["created_at"], datetime):
+            m_copy["created_at"] = m_copy["created_at"].isoformat()
+        serialized.append(m_copy)
+    return sorted(serialized, key=lambda x: x["created_at"])
+
+
+# ------------------------------
+# Manejo de conexiones
 # ------------------------------
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.burbujas_enviadas: dict[str, set[str]] = {}
-        self.sessions_context: dict[str, list] = {}  # memoria por session_id
+        self.sessions_context: dict[str, list] = {}
 
     async def connect(self, websocket: WebSocket, session_id: str):
         await websocket.accept()
@@ -41,14 +55,19 @@ class ConnectionManager:
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
         self.burbujas_enviadas.pop(session_id, None)
+        # Backup y cierre de sesión
+        try:
+            cerrar_sesion(session_id)
+            print(f"[{session_id}] Sesión cerrada y backup realizado")
+        except Exception as e:
+            print(f"[{session_id}] Error cerrando sesión:", repr(e))
         print(f"[{session_id}] Desconectado")
 
     async def send_personal_message(self, message: dict, session_id: str):
         websocket = self.active_connections.get(session_id)
         if websocket:
             try:
-                if "reply" in message and isinstance(message["reply"], list):
-                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
+                if "reply" in message and all(isinstance(m, str) for m in message["reply"]):
                     self.burbujas_enviadas[session_id].update(message["reply"])
                 await websocket.send_json(message)
             except Exception as e:
@@ -63,9 +82,9 @@ manager = ConnectionManager()
 # ------------------------------
 async def enviar_burbujas_con_delay(burbujas, session_id):
     for b in burbujas:
-        if f"[ws] {b}" not in manager.burbujas_enviadas[session_id]:
+        if b not in manager.burbujas_enviadas[session_id]:
             await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
-            await asyncio.sleep(random.uniform(1, 2.5))
+            await asyncio.sleep(random.uniform(1, 3))
 
 
 # ------------------------------
@@ -73,9 +92,9 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
 # ------------------------------
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    # Crear sesión anónima si no hay session_id o es "guest"
+    # Crear sesión si es invitado o no existe
     if not session_id or session_id == "guest":
-        session_id = crear_sesion()
+        session_id = crear_sesion(user_id=None, context=[])
         print(f"Nuevo session_id generado para invitado: {session_id}")
 
     await manager.connect(websocket, session_id)
@@ -86,16 +105,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial de mensajes
+        # Recuperar historial de mensajes de la memoria
         history = get_session_messages(session_id)
         manager.sessions_context[session_id] = history
 
         # Enviar historial serializado
-        if history:
-            await manager.send_personal_message({
-                "reply": [m["content"] for m in history],
-                "session_id": session_id
-            }, session_id)
+        await manager.send_personal_message({
+            "reply": serialize_messages(history),
+            "session_id": session_id
+        }, session_id)
 
         while True:
             data = await websocket.receive_json()

@@ -62,13 +62,3 @@ def save_message(session_id, sender, content, emotion=None):
     }
     supabase.table("messages").insert(data).execute()
     return data
-
-def get_session_messages(session_id):
-    res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
-    messages = []
-    for m in res.data or []:
-        m_copy = m.copy()
-        if isinstance(m_copy.get("created_at"), datetime):
-            m_copy["created_at"] = m_copy["created_at"].isoformat()
-        messages.append(m_copy)
-    return sorted(messages, key=lambda x: x["created_at"])
