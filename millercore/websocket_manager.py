@@ -54,7 +54,6 @@ class ConnectionManager:
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
-
 manager = ConnectionManager()
 
 # ------------------------------
@@ -84,7 +83,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial de mensajes
+        # Recuperar historial de mensajes usando versión compatible con Supabase
         history = get_session_messages(session_id)
         manager.sessions_context[session_id] = history
 
