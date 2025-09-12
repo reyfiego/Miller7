@@ -248,3 +248,4 @@ loginForm.addEventListener("submit", async (e) => {
     } catch {
         alert("Error al conectar con el servidor");
     }
+    });
