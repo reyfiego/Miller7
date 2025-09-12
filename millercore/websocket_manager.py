@@ -6,7 +6,7 @@ from groq import Groq
 from .burbujas_texto import dividir_burbujas_aleatorio
 from .corazon import SYSTEM_ROLE, get_random_greeting
 from millercore.db.models import save_message, get_session_messages, crear_sesion
-from millercore.ia.memoria import backup_sesion
+from ia.memoria import backup_sesion
 from millercore.db.supabase_client import supabase
 from dotenv import load_dotenv
 from datetime import datetime
