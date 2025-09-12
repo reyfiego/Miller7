@@ -42,15 +42,14 @@ def obtener_sesiones(user_id):
 # ------------------------------- MENSAJES -------------------------------
 def save_message(session_id, sender, content, emotion=None):
     data = {
-        "id": str(uuid.uuid4()),
         "session_id": session_id,
-        "sender": sender,
+        "sender": sender,  # 👈 columna real
         "content": content,
         "emotion": emotion,
-        "created_at": datetime.utcnow()
+        "created_at": datetime.utcnow().isoformat()
     }
     supabase.table("messages").insert(data).execute()
-    return data
+
 
 
 

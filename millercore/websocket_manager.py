@@ -22,7 +22,21 @@ router = APIRouter()
 
 
 # ------------------------------
-# Manejo de conexiones
+# Serialización de mensajes
+# ------------------------------
+def serialize_messages(messages):
+    """Convierte datetime a string ISO para JSON y ordena ascendentemente."""
+    serialized = []
+    for m in messages:
+        m_copy = m.copy()
+        if "created_at" in m_copy and isinstance(m_copy["created_at"], datetime):
+            m_copy["created_at"] = m_copy["created_at"].isoformat()
+        serialized.append(m_copy)
+    return sorted(serialized, key=lambda x: x["created_at"])
+
+
+# ------------------------------
+# Connection Manager
 # ------------------------------
 class ConnectionManager:
     def __init__(self):
@@ -41,7 +55,6 @@ class ConnectionManager:
     def disconnect(self, session_id: str):
         self.active_connections.pop(session_id, None)
         self.burbujas_enviadas.pop(session_id, None)
-        # Backup y cierre de sesión
         try:
             cerrar_sesion(session_id)
             print(f"[{session_id}] Sesión cerrada y backup realizado")
@@ -64,13 +77,23 @@ manager = ConnectionManager()
 
 
 # ------------------------------
-# Funciones auxiliares
+# Auxiliares
 # ------------------------------
 async def enviar_burbujas_con_delay(burbujas, session_id):
     for b in burbujas:
         if b not in manager.burbujas_enviadas[session_id]:
             await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
             await asyncio.sleep(random.uniform(1, 3))
+
+
+def map_sender_to_role(message):
+    """Convierte sender → role para Groq."""
+    if message["sender"] == "user":
+        return {"role": "user", "content": message["content"]}
+    elif message["sender"] == "miller":
+        return {"role": "assistant", "content": message["content"]}
+    else:
+        return {"role": "system", "content": message["content"]}
 
 
 # ------------------------------
@@ -91,17 +114,19 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial de la BD solo para IA (NO se envía por WS)
+        # Recuperar historial
         history = get_session_messages(session_id)
-        manager.sessions_context[session_id] = [
-            {"role": m.get("role"), "content": m.get("content"), "created_at": m.get("created_at")}
-            for m in history
-        ]
+        manager.sessions_context[session_id] = history
+
+        # Enviar historial serializado
+        await manager.send_personal_message({
+            "reply": serialize_messages(history),
+            "session_id": session_id
+        }, session_id)
 
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
-            user_id = data.get("user_id")
 
             if not user_text:
                 await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
@@ -110,14 +135,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             # Guardar mensaje del usuario
             save_message(session_id, "user", user_text)
             manager.sessions_context[session_id].append({
-                "role": "user",
+                "sender": "user",
                 "content": user_text,
                 "created_at": datetime.utcnow().isoformat()
             })
 
-            # Preparar historial para IA
+            # Preparar historial para Groq
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
-            messages_for_groq = system_messages + manager.sessions_context[session_id]
+            messages_for_groq = system_messages + [
+                map_sender_to_role(m) for m in manager.sessions_context[session_id]
+            ]
 
             try:
                 response = groq_client.chat.completions.create(
@@ -131,15 +158,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Guardar respuesta de Miller
-                save_message(session_id, "assistant", reply_text)
+                # Guardar respuesta
+                save_message(session_id, "miller", reply_text)
                 manager.sessions_context[session_id].append({
-                    "role": "assistant",
+                    "sender": "miller",
                     "content": reply_text,
                     "created_at": datetime.utcnow().isoformat()
                 })
 
-                # Enviar burbujas con delay
+                # Enviar en burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
                 await enviar_burbujas_con_delay(burbujas, session_id)
 
