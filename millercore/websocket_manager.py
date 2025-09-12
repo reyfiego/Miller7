@@ -21,6 +21,21 @@ if not API_KEY:
 groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
+
+# ------------------------------
+# Función para serializar mensajes
+# ------------------------------
+def serialize_messages(messages):
+    """Convierte datetime a string ISO para que JSON los pueda enviar."""
+    serialized = []
+    for m in messages:
+        m_copy = m.copy()
+        if isinstance(m_copy.get("created_at"), datetime):
+            m_copy["created_at"] = m_copy["created_at"].isoformat()
+        serialized.append(m_copy)
+    return serialized
+
+
 # ------------------------------
 # Manejo de conexiones y sesiones
 # ------------------------------
@@ -48,13 +63,17 @@ class ConnectionManager:
         if websocket:
             try:
                 if "reply" in message:
-                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
-                    self.burbujas_enviadas[session_id].update(message["reply"])
+                    # Si vienen mensajes como lista de strings, formateamos burbujas
+                    if all(isinstance(m, str) for m in message["reply"]):
+                        message["reply"] = [f"[ws] {b}" for b in message["reply"]]
+                        self.burbujas_enviadas[session_id].update(message["reply"])
                 await websocket.send_json(message)
             except Exception as e:
                 print(f"[{session_id}] Error enviando mensaje:", repr(e))
 
+
 manager = ConnectionManager()
+
 
 # ------------------------------
 # Funciones auxiliares
@@ -64,6 +83,7 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
         if b not in manager.burbujas_enviadas[session_id]:
             await manager.send_personal_message({"reply": [b], "session_id": session_id}, session_id)
             await asyncio.sleep(random.uniform(1, 3))  # delay aleatorio
+
 
 # ------------------------------
 # WebSocket endpoint
@@ -83,9 +103,15 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial de mensajes usando versión compatible con Supabase
+        # Recuperar historial de mensajes
         history = get_session_messages(session_id)
         manager.sessions_context[session_id] = history
+
+        # Enviar historial serializado para evitar error JSON
+        await manager.send_personal_message({
+            "reply": serialize_messages(history),
+            "session_id": session_id
+        }, session_id)
 
         while True:
             data = await websocket.receive_json()
@@ -98,7 +124,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             # Guardar mensaje del usuario
             save_message(session_id, "user", user_text)
-            manager.sessions_context[session_id].append({"role": "user", "content": user_text})
+            manager.sessions_context[session_id].append({"role": "user", "content": user_text, "created_at": datetime.utcnow()})
 
             # Preparar historial para IA
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
@@ -118,7 +144,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
                 # Guardar respuesta de Miller
                 save_message(session_id, "assistant", reply_text)
-                manager.sessions_context[session_id].append({"role": "assistant", "content": reply_text})
+                manager.sessions_context[session_id].append({"role": "assistant", "content": reply_text, "created_at": datetime.utcnow()})
 
                 # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
