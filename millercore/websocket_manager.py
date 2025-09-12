@@ -141,9 +141,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             # Guardar mensaje del usuario en memoria
             user_entry = {
-                "role": "user",
+                
                 "content": user_text,
-                "created_at": datetime.utcnow().isoformat()
             }
             manager.sessions_context[session_id].append(user_entry)
 
