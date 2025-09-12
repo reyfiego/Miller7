@@ -3,7 +3,6 @@
 // -------------------------
 const SESSION_KEY = "miller_session_id"; 
 
-// Si el usuario está logueado, forzamos nuevo session_id
 let loggedIn = localStorage.getItem("miller_logged_in") === "true";
 let userId = localStorage.getItem("miller_user_id"); 
 
@@ -223,7 +222,6 @@ loginForm.addEventListener("submit", async (e) => {
     if (data.success) {
       alert("Inicio de sesión exitoso");
 
-      // Cambiar sesión a nueva
       sessionId = crypto.randomUUID();
       localStorage.setItem(SESSION_KEY, sessionId);
 
@@ -233,7 +231,6 @@ loginForm.addEventListener("submit", async (e) => {
       localStorage.setItem("miller_user_id", userId);
       closeElement(loginPanel);
 
-      // Reconectar WebSocket
       if (ws) ws.close();
       connectWS();
     } else {
