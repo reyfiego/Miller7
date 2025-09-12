@@ -95,48 +95,59 @@ def get_session_messages_from_db(session_id):
 # ------------------------------
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    # Invitado: siempre sesión nueva
-    if not session_id or session_id == "guest":
-        session_id = str(uuid.uuid4())
-        user_id = None
-    else:
-        # Usuario logueado: usar session_id y asociar user_id si se requiere
-        user_id = None  # <-- aquí puedes pasar el user_id real
-        ensure_session_exists(session_id, user_id=user_id)
-
+    # 1️⃣ Conectar primero
     await manager.connect(websocket, session_id)
 
-    # Saludo inicial
+    # 2️⃣ Determinar si es guest o usuario logueado
+    # session_id "guest" o vacío indica usuario no logueado
+    is_guest = not session_id or session_id.startswith("guest")
+
+    if is_guest:
+        # Generar un session_id aleatorio para guest
+        session_id = str(uuid.uuid4())
+        print(f"Nuevo session_id generado para guest: {session_id}")
+    else:
+        # Si es usuario logueado, usar su session_id fijo
+        print(f"Usuario logueado, session_id: {session_id}")
+
+    # 3️⃣ Asegurar que la sesión exista en la DB
+    ensure_session_exists(session_id)
+
+    # 4️⃣ Saludo inicial
     saludo = get_random_greeting()
     if saludo:
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
-    # Cargar historial solo de esta sesión
-    manager.sessions_context[session_id] = get_session_messages_from_db(session_id)
-
     try:
+        # 5️⃣ Recuperar historial de la DB solo si no es guest o si se desea persistente
+        history = get_session_messages_from_db(session_id) if not is_guest else []
+        manager.sessions_context[session_id] = history
+
         while True:
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
+
             if not user_text:
                 await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
                 continue
 
             # Guardar mensaje del usuario
             save_message(session_id, "user", user_text)
-            supabase.table("messages").insert({
-                "id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "sender": "user",
-                "content": user_text,
-                "created_at": datetime.utcnow().isoformat()
-            }).execute()
+            if not is_guest:  # Persistir solo si no es guest
+                supabase.table("messages").insert({
+                    "id": str(uuid.uuid4()),
+                    "session_id": session_id,
+                    "sender": "user",
+                    "content": user_text,
+                    "created_at": datetime.now().isoformat()
+                }).execute()
 
-            # Preparar historial para IA (solo de esta sesión)
+            # Preparar historial para IA
             history = manager.sessions_context[session_id]
             system_messages = [{"role": "system", "content": SYSTEM_ROLE}]
             messages_for_groq = system_messages + history + [{"role": "user", "content": user_text}]
 
+            # Generar respuesta
             try:
                 response = groq_client.chat.completions.create(
                     model=MODEL_ID,
@@ -151,13 +162,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
                 # Guardar respuesta de Miller
                 save_message(session_id, "assistant", reply_text)
-                supabase.table("messages").insert({
-                    "id": str(uuid.uuid4()),
-                    "session_id": session_id,
-                    "sender": "assistant",
-                    "content": reply_text,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
+                if not is_guest:
+                    supabase.table("messages").insert({
+                        "id": str(uuid.uuid4()),
+                        "session_id": session_id,
+                        "sender": "assistant",
+                        "content": reply_text,
+                        "created_at": datetime.now().isoformat()
+                    }).execute()
 
                 # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)

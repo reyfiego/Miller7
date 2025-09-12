@@ -2,14 +2,32 @@
 // SESIÓN
 // -------------------------
 const SESSION_KEY = "miller_session_id"; 
-let sessionId = localStorage.getItem(SESSION_KEY);
-if (!sessionId) {
-  sessionId = crypto.randomUUID();
-  localStorage.setItem(SESSION_KEY, sessionId);
+let sessionId;
+let loggedIn = localStorage.getItem("miller_logged_in") === "true";
+
+if (loggedIn) {
+    sessionId = localStorage.getItem("miller_session_id");
+    if (!sessionId) {
+        sessionId = crypto.randomUUID();
+        localStorage.setItem("miller_session_id", sessionId);
+    }
+} else {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem("miller_session_id", sessionId);
 }
 
-let loggedIn = localStorage.getItem("miller_logged_in") === "true";
-let userId = localStorage.getItem("miller_user_id"); // guardamos user_id si está logueado
+// 2️⃣ Abrir conexión WebSocket con el sessionId correcto
+const ws = new WebSocket(`wss://https://miller2.onrender.com//ws/chat/${sessionId}`);
+
+// 3️⃣ Configurar eventos de WebSocket
+ws.onopen = () => {
+    console.log("Conectado al chat con session_id:", sessionId);
+};
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log("Mensaje recibido:", data);
+};
 
 // -------------------------
 // ELEMENTOS DEL DOM
