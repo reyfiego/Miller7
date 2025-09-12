@@ -197,7 +197,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
-                fallback_msg = "El silencio también tiene cosas que decir a veces 123."
+                fallback_msg = "El silencio también tiene cosas que decir a veces 1234."
                 manager.sessions_context[session_id].append({"role": "assistant", "content": fallback_msg, "created_at": datetime.utcnow().isoformat()})
                 if is_logged_in:
                     guardar_sesion(session_id, manager.sessions_context[session_id])
