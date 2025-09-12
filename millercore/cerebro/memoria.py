@@ -4,16 +4,24 @@ from millercore.db.supabase_client import supabase
 # -------------------------------
 # MENSAJES
 # -------------------------------
-def get_session_messages(session_id):
+def get_session_messages(session_id: str):
     """Obtiene todos los mensajes de una sesión ordenados por fecha."""
     res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
     messages = []
     for m in res.data or []:
         m_copy = m.copy()
+        # Normalizar created_at a ISO string
         if isinstance(m_copy.get("created_at"), datetime):
             m_copy["created_at"] = m_copy["created_at"].isoformat()
+        elif m_copy.get("created_at") and not isinstance(m_copy.get("created_at"), str):
+            try:
+                m_copy["created_at"] = str(m_copy["created_at"])
+            except Exception:
+                m_copy["created_at"] = None
         messages.append(m_copy)
-    return sorted(messages, key=lambda x: x["created_at"])
+
+    return sorted(messages, key=lambda x: x.get("created_at") or "")
+
 
 # -------------------------------
 # BACKUPS Y SESIONES INACTIVAS
@@ -23,7 +31,7 @@ def backup_sesion(session_id: str):
     res = supabase.table("messages").select("*").eq("session_id", session_id).execute()
     mensajes = res.data if res.data else []
 
-    # Convertir datetime a ISO
+    # Convertir fechas a ISO string
     for m in mensajes:
         if isinstance(m.get("created_at"), datetime):
             m["created_at"] = m["created_at"].isoformat()
@@ -34,6 +42,7 @@ def backup_sesion(session_id: str):
         "created_at": datetime.utcnow().isoformat()
     }
     supabase.table("session_backups").insert(data).execute()
+
 
 def cerrar_sesion(session_id: str):
     """Marca la sesión como inactiva y hace backup"""

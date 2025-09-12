@@ -26,18 +26,7 @@ def obtener_usuario(email: str):
     return res.data[0] if res.data else None
 
 # ------------------------------- SESIONES -------------------------------
-def crear_sesion(user_id=None, context=None):
-    session_id = str(uuid.uuid4())
-    data = {
-        "id": session_id,
-        "user_id": user_id,
-        "context": context or [],
-        "is_active": True,
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
-    }
-    supabase.table("sessions").insert(data).execute()
-    return session_id
+
 
 def guardar_sesion(session_id, context):
     res = supabase.table("sessions").update({
@@ -62,3 +51,37 @@ def save_message(session_id, sender, content, emotion=None):
     }
     supabase.table("messages").insert(data).execute()
     return data
+
+
+
+# -------------------------------
+# SESIONES
+# -------------------------------
+def crear_sesion(user_id=None, context=None):
+    """Crea una nueva sesión en la tabla sessions"""
+    session_data = {
+        "user_id": user_id,
+        "context": context or [],
+        "is_active": True,
+        "created_at": datetime.utcnow().isoformat(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+    res = supabase.table("sessions").insert(session_data).execute()
+    if res.data:
+        return res.data[0]["id"]
+    return None
+
+
+# -------------------------------
+# MENSAJES
+# -------------------------------
+def save_message(session_id: str, role: str, content: str):
+    """Guarda un mensaje en la tabla messages"""
+    message_data = {
+        "session_id": session_id,
+        "role": role,
+        "content": content,
+        "created_at": datetime.utcnow().isoformat()
+    }
+    supabase.table("messages").insert(message_data).execute()
+

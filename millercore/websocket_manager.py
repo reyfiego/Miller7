@@ -22,20 +22,6 @@ router = APIRouter()
 
 
 # ------------------------------
-# Serialización de mensajes
-# ------------------------------
-def serialize_messages(messages):
-    """Convierte datetime a string ISO para JSON y ordena ascendentemente."""
-    serialized = []
-    for m in messages:
-        m_copy = m.copy()
-        if "created_at" in m_copy and isinstance(m_copy["created_at"], datetime):
-            m_copy["created_at"] = m_copy["created_at"].isoformat()
-        serialized.append(m_copy)
-    return sorted(serialized, key=lambda x: x["created_at"])
-
-
-# ------------------------------
 # Manejo de conexiones
 # ------------------------------
 class ConnectionManager:
@@ -105,15 +91,12 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         await manager.send_personal_message({"reply": [saludo], "session_id": session_id}, session_id)
 
     try:
-        # Recuperar historial de mensajes de la memoria
+        # Recuperar historial de la BD solo para IA (NO se envía por WS)
         history = get_session_messages(session_id)
-        manager.sessions_context[session_id] = history
-
-        # Enviar historial serializado
-        await manager.send_personal_message({
-            "reply": serialize_messages(history),
-            "session_id": session_id
-        }, session_id)
+        manager.sessions_context[session_id] = [
+            {"role": m.get("role"), "content": m.get("content"), "created_at": m.get("created_at")}
+            for m in history
+        ]
 
         while True:
             data = await websocket.receive_json()
