@@ -1,5 +1,3 @@
-init
-
 import os
 import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException
