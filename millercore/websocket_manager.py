@@ -71,44 +71,56 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
 
 
 def ensure_session_exists(session_id: str, user_id=None):
-    """Asegura que la sesión exista en DB (incluye invitados con user_id=None)"""
+    """Asegura que la sesión exista en DB (solo logeados)"""
     existing = supabase.table("sessions").select("id").eq("id", session_id).execute()
     if not existing.data:
-        supabase.table("sessions").insert({
+        data = {
             "id": session_id,
-            "user_id": user_id,  # None si es invitado
             "context": [],
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": datetime.utcnow().isoformat()
-        }).execute()
+        }
+        if user_id:  # solo usuarios logeados
+            data["user_id"] = user_id
+        supabase.table("sessions").insert(data).execute()
 
 
+# ------------------------------
+# WebSocket
+# ------------------------------
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    await manager.connect(websocket, session_id)
-
-    # ⚡ Distinción: usuario logeado vs invitado
-    # Si el session_id viene del frontend como userId → logeado
-    # Si viene como uuid generado → invitado
+    # ------------------------
+    # Invitados → UUID nuevo siempre
+    # ------------------------
+    is_logged_in = False
     user_id = None
+
     try:
         uuid.UUID(session_id)
+        # Si es un UUID válido → asumimos logeado
+        is_logged_in = True
+        user_id = session_id
     except ValueError:
-        # si no es UUID válido → inventamos uno para DB
+        # Invitado: generamos nuevo UUID para cada refresh
         new_uuid = str(uuid.uuid4())
-        print(f"[guest] session_id inválido recibido ({session_id}), asignando {new_uuid}")
+        print(f"[guest] nuevo session_id generado: {new_uuid}")
         session_id = new_uuid
-    else:
-        user_id = session_id  # usuarios logeados
 
-    # Crear sesión en DB
-    ensure_session_exists(session_id, user_id)
+    await manager.connect(websocket, session_id)
 
-    # Recuperar contexto si existía
-    db_session = supabase.table("sessions").select("context").eq("id", session_id).execute()
-    if db_session.data and isinstance(db_session.data[0].get("context"), list):
-        manager.sessions_context[session_id] = db_session.data[0]["context"]
+    # Crear sesión en DB si es logeado
+    if is_logged_in:
+        ensure_session_exists(session_id, user_id)
+
+        # Recuperar contexto de DB
+        db_session = supabase.table("sessions").select("context").eq("id", session_id).execute()
+        if db_session.data and isinstance(db_session.data[0].get("context"), list):
+            manager.sessions_context[session_id] = db_session.data[0]["context"]
+        else:
+            manager.sessions_context[session_id] = []
     else:
+        # Invitado: memoria temporal (no persistente en DB)
         manager.sessions_context[session_id] = []
 
     # Saludo inicial
@@ -121,24 +133,27 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             data = await websocket.receive_json()
             user_text = data.get("message", "").strip()
             if not user_text:
-                await manager.send_personal_message({"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id)
+                await manager.send_personal_message(
+                    {"reply": ["Por favor, dime algo."], "session_id": session_id}, session_id
+                )
                 continue
 
             # Guardar mensaje user en memoria
             user_entry = {"role": "user", "content": user_text, "created_at": datetime.utcnow().isoformat()}
             manager.sessions_context[session_id].append(user_entry)
 
-            # Guardar en DB (ahora también invitados)
-            supabase.table("messages").insert({
-                "id": str(uuid.uuid4()),
-                "session_id": session_id,
-                "sender": "user",
-                "content": user_text,
-                "created_at": datetime.utcnow().isoformat()
-            }).execute()
+            # Guardar solo si logeado
+            if is_logged_in:
+                supabase.table("messages").insert({
+                    "id": str(uuid.uuid4()),
+                    "session_id": session_id,
+                    "sender": "user",
+                    "content": user_text,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
 
-            from .db.models import guardar_sesion
-            guardar_sesion(session_id, manager.sessions_context[session_id])
+                from .db.models import guardar_sesion
+                guardar_sesion(session_id, manager.sessions_context[session_id])
 
             # Historial para IA
             messages_for_groq = [{"role": "system", "content": SYSTEM_ROLE}] + [
@@ -157,19 +172,22 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Guardar asistente en memoria + DB
+                # Guardar respuesta asistente en memoria
                 assistant_entry = {"role": "assistant", "content": reply_text, "created_at": datetime.utcnow().isoformat()}
                 manager.sessions_context[session_id].append(assistant_entry)
 
-                supabase.table("messages").insert({
-                    "id": str(uuid.uuid4()),
-                    "session_id": session_id,
-                    "sender": "assistant",
-                    "content": reply_text,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
+                # Guardar en DB solo si logeado
+                if is_logged_in:
+                    supabase.table("messages").insert({
+                        "id": str(uuid.uuid4()),
+                        "session_id": session_id,
+                        "sender": "assistant",
+                        "content": reply_text,
+                        "created_at": datetime.utcnow().isoformat()
+                    }).execute()
 
-                guardar_sesion(session_id, manager.sessions_context[session_id])
+                    from .db.models import guardar_sesion
+                    guardar_sesion(session_id, manager.sessions_context[session_id])
 
                 # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
@@ -178,8 +196,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
-                manager.sessions_context[session_id].append({"role": "assistant", "content": fallback_msg, "created_at": datetime.utcnow().isoformat()})
-                guardar_sesion(session_id, manager.sessions_context[session_id])
+                manager.sessions_context[session_id].append({
+                    "role": "assistant",
+                    "content": fallback_msg,
+                    "created_at": datetime.utcnow().isoformat()
+                })
+                if is_logged_in:
+                    from .db.models import guardar_sesion
+                    guardar_sesion(session_id, manager.sessions_context[session_id])
                 burbujas = dividir_burbujas_aleatorio(fallback_msg)
                 await enviar_burbujas_con_delay(burbujas, session_id)
 
