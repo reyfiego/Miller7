@@ -5,15 +5,21 @@ const SESSION_KEY = "miller_session_id";
 const LOGGED_KEY = "miller_logged_in";
 const USER_ID_KEY = "miller_user_id";
 
-let sessionId = localStorage.getItem(SESSION_KEY);
 let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
 let userId = localStorage.getItem(USER_ID_KEY);
+let sessionId;
 
-// Si no hay sessionId, crear uno aleatorio (guest)
-if (!sessionId) {
-    sessionId = crypto.randomUUID();
+if (loggedIn && userId) {
+    // Usuario logeado → sessionId fijo
+    sessionId = userId;
     localStorage.setItem(SESSION_KEY, sessionId);
+} else {
+    // Invitado → siempre un nuevo sessionId en cada refresh
+    sessionId = crypto.randomUUID();
+    // No lo guardamos en localStorage
+    console.log("Sesión invitado generada:", sessionId);
 }
+
 
 // -------------------------
 // FRONTEND UI ELEMENTS
