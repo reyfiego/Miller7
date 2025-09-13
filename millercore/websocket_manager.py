@@ -25,6 +25,19 @@ router = APIRouter()
 # UUID fijo para invitados (crear en tabla users con este id)
 GUEST_USER_ID = "00000000-0000-0000-0000-000000000000"
 
+# ...
+
+try:
+    uuid.UUID(session_id)
+    is_logged_in = True
+    user_id = session_id  # usuarios logeados
+except ValueError:
+    # invitado → usar guest fijo
+    session_id = str(uuid.uuid4())  # nueva sesión
+    user_id = GUEST_USER_ID
+    is_logged_in = False
+
+
 
 # ------------------------------
 # Manejo de conexiones y sesiones
@@ -74,17 +87,18 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
 
 
 def ensure_session_exists(session_id: str, user_id=None):
-    """Asegura que la sesión exista en DB (siempre con un user_id válido)"""
     existing = supabase.table("sessions").select("id").eq("id", session_id).execute()
     if not existing.data:
         data = {
             "id": session_id,
             "context": [],
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-            "user_id": user_id or GUEST_USER_ID  # invitados usan el fijo
+            "updated_at": datetime.utcnow().isoformat()
         }
+        if user_id:
+            data["user_id"] = user_id
         supabase.table("sessions").insert(data).execute()
+
 
 
 # ------------------------------
