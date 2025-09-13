@@ -22,6 +22,9 @@ if not API_KEY:
 groq_client = Groq(api_key=API_KEY)
 router = APIRouter()
 
+# UUID fijo para invitados (crear en tabla users con este id)
+GUEST_USER_ID = "00000000-0000-0000-0000-000000000000"
+
 
 # ------------------------------
 # Manejo de conexiones y sesiones
@@ -71,17 +74,16 @@ async def enviar_burbujas_con_delay(burbujas, session_id):
 
 
 def ensure_session_exists(session_id: str, user_id=None):
-    """Asegura que la sesión exista en DB (solo logeados)"""
+    """Asegura que la sesión exista en DB (siempre con un user_id válido)"""
     existing = supabase.table("sessions").select("id").eq("id", session_id).execute()
     if not existing.data:
         data = {
             "id": session_id,
             "context": [],
             "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "updated_at": datetime.utcnow().isoformat(),
+            "user_id": user_id or GUEST_USER_ID  # invitados usan el fijo
         }
-        if user_id:  # solo usuarios logeados
-            data["user_id"] = user_id
         supabase.table("sessions").insert(data).execute()
 
 
@@ -98,7 +100,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
 
     try:
         uuid.UUID(session_id)
-        # Si es un UUID válido → asumimos logeado
+        # Si es UUID válido → asumimos logeado
         is_logged_in = True
         user_id = session_id
     except ValueError:
@@ -106,21 +108,18 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         new_uuid = str(uuid.uuid4())
         print(f"[guest] nuevo session_id generado: {new_uuid}")
         session_id = new_uuid
+        user_id = GUEST_USER_ID  # se asigna al invitado fijo
 
     await manager.connect(websocket, session_id)
 
-    # Crear sesión en DB si es logeado
-    if is_logged_in:
-        ensure_session_exists(session_id, user_id)
+    # Crear sesión en DB
+    ensure_session_exists(session_id, user_id)
 
-        # Recuperar contexto de DB
-        db_session = supabase.table("sessions").select("context").eq("id", session_id).execute()
-        if db_session.data and isinstance(db_session.data[0].get("context"), list):
-            manager.sessions_context[session_id] = db_session.data[0]["context"]
-        else:
-            manager.sessions_context[session_id] = []
+    # Recuperar contexto de DB
+    db_session = supabase.table("sessions").select("context").eq("id", session_id).execute()
+    if db_session.data and isinstance(db_session.data[0].get("context"), list):
+        manager.sessions_context[session_id] = db_session.data[0]["context"]
     else:
-        # Invitado: memoria temporal (no persistente en DB)
         manager.sessions_context[session_id] = []
 
     # Saludo inicial
@@ -142,18 +141,17 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             user_entry = {"role": "user", "content": user_text, "created_at": datetime.utcnow().isoformat()}
             manager.sessions_context[session_id].append(user_entry)
 
-            # Guardar solo si logeado
-            if is_logged_in:
-                supabase.table("messages").insert({
-                    "id": str(uuid.uuid4()),
-                    "session_id": session_id,
-                    "sender": "user",
-                    "content": user_text,
-                    "created_at": datetime.utcnow().isoformat()
-                }).execute()
+            # Guardar siempre (invitados y logeados)
+            supabase.table("messages").insert({
+                "id": str(uuid.uuid4()),
+                "session_id": session_id,
+                "sender": "user",
+                "content": user_text,
+                "created_at": datetime.utcnow().isoformat()
+            }).execute()
 
-                from .db.models import guardar_sesion
-                guardar_sesion(session_id, manager.sessions_context[session_id])
+            from .db.models import guardar_sesion
+            guardar_sesion(session_id, manager.sessions_context[session_id])
 
             # Historial para IA
             messages_for_groq = [{"role": "system", "content": SYSTEM_ROLE}] + [
@@ -176,18 +174,16 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 assistant_entry = {"role": "assistant", "content": reply_text, "created_at": datetime.utcnow().isoformat()}
                 manager.sessions_context[session_id].append(assistant_entry)
 
-                # Guardar en DB solo si logeado
-                if is_logged_in:
-                    supabase.table("messages").insert({
-                        "id": str(uuid.uuid4()),
-                        "session_id": session_id,
-                        "sender": "assistant",
-                        "content": reply_text,
-                        "created_at": datetime.utcnow().isoformat()
-                    }).execute()
+                # Guardar en DB
+                supabase.table("messages").insert({
+                    "id": str(uuid.uuid4()),
+                    "session_id": session_id,
+                    "sender": "assistant",
+                    "content": reply_text,
+                    "created_at": datetime.utcnow().isoformat()
+                }).execute()
 
-                    from .db.models import guardar_sesion
-                    guardar_sesion(session_id, manager.sessions_context[session_id])
+                guardar_sesion(session_id, manager.sessions_context[session_id])
 
                 # Enviar burbujas
                 burbujas = dividir_burbujas_aleatorio(reply_text)
@@ -201,9 +197,7 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                     "content": fallback_msg,
                     "created_at": datetime.utcnow().isoformat()
                 })
-                if is_logged_in:
-                    from .db.models import guardar_sesion
-                    guardar_sesion(session_id, manager.sessions_context[session_id])
+                guardar_sesion(session_id, manager.sessions_context[session_id])
                 burbujas = dividir_burbujas_aleatorio(fallback_msg)
                 await enviar_burbujas_con_delay(burbujas, session_id)
 
