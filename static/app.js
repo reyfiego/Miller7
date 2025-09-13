@@ -16,13 +16,11 @@ if (loggedIn && userId) {
 } else {
     // Invitado → siempre un nuevo sessionId en cada refresh
     sessionId = crypto.randomUUID();
-    // No lo guardamos en localStorage
     console.log("Sesión invitado generada:", sessionId);
 }
 
-
 // -------------------------
-// FRONTEND UI ELEMENTS
+// ELEMENTOS DEL DOM
 // -------------------------
 const chatEl = document.getElementById("chat");
 const form = document.getElementById("composer-form");
@@ -49,7 +47,7 @@ const loginForm = document.getElementById("login-form");
 const registerForm = document.getElementById("register-form");
 
 // -------------------------
-// HELPER FUNCTIONS
+// UTILS
 // -------------------------
 function openElement(element) {
     element.classList.add("active");
@@ -65,6 +63,23 @@ function closeElement(element) {
     }, 300);
 }
 
+function addBubble(sender, text) {
+    const bubble = document.createElement("div");
+    bubble.className = `bubble ${sender}`;
+    bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
+    chatEl.appendChild(bubble);
+    chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, s => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[s]));
+}
+
+function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+// -------------------------
+// PANELES
+// -------------------------
 loginBtn.addEventListener("click", () => { 
     openElement(loginPanel); 
     registerPanel.classList.remove("active"); 
@@ -83,25 +98,12 @@ infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
 window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
 
-function addBubble(sender, text) {
-    const bubble = document.createElement("div");
-    bubble.className = `bubble ${sender}`;
-    bubble.innerHTML = `<strong>${sender === "you" ? "Tú" : "Miller"}:</strong> ${escapeHtml(text)}`;
-    chatEl.appendChild(bubble);
-    chatEl.scrollTop = chatEl.scrollHeight;
-}
-
-function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, (s) => ({ 
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' 
-    }[s]));
-}
-
 // -------------------------
 // WEBSOCKET
 // -------------------------
 let ws;
 let burbujasMostradas = new Set();
+let mensajeQueue = [];
 
 function connectWS() {
     if (ws && ws.readyState !== WebSocket.CLOSED) return;
@@ -112,7 +114,7 @@ function connectWS() {
     ws.onopen = async () => {
         console.log("Conectado al WebSocket con session_id:", sessionId);
 
-        // Cargar historial previo
+        // Cargar historial
         try {
             const realSessionId = loggedIn ? userId : sessionId;
             const res = await fetch(`/session/${realSessionId}/messages`);
@@ -124,24 +126,16 @@ function connectWS() {
                     burbujasMostradas.add(msg.content);
                 });
             }
-        } catch (err) {
-            console.warn("No se pudieron cargar mensajes previos:", err);
-        }
+        } catch (err) { console.warn("No se pudieron cargar mensajes previos:", err); }
     };
 
-    ws.onmessage = async (event) => {
+    ws.onmessage = (event) => {
         let data;
-        try { data = JSON.parse(event.data); } 
-        catch { data = { reply: [event.data] }; }
+        try { data = JSON.parse(event.data); } catch { data = { reply: [event.data] }; }
 
         if (Array.isArray(data.reply)) {
-            for (let i = 0; i < data.reply.length; i++) {
-                const msg = data.reply[i].replace(/(\.\.\.)+/g, "…");
-                if (burbujasMostradas.has(msg)) continue;
-                if (i === 0) addBubble("ai", msg);
-                else await delay(2000), addBubble("ai", msg);
-                burbujasMostradas.add(msg);
-            }
+            data.reply.forEach(msg => mensajeQueue.push(msg.replace(/(\.\.\.)+/g, "…")));
+            processQueue();
         }
     };
 
@@ -149,7 +143,16 @@ function connectWS() {
     ws.onerror = (err) => { console.error("Error WS:", err); ws.close(); };
 }
 
-// Enviar mensajes seguro
+async function processQueue() {
+    while (mensajeQueue.length) {
+        const msg = mensajeQueue.shift();
+        if (burbujasMostradas.has(msg)) continue;
+        addBubble("ai", msg);
+        burbujasMostradas.add(msg);
+        await delay(1500);
+    }
+}
+
 function send(text) {
     addBubble("you", text);
     input.value = "";
@@ -172,8 +175,6 @@ form.addEventListener("submit", (e) => {
     const text = input.value.trim();
     if (text) send(text);
 });
-
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 // -------------------------
 // MICROFONO
@@ -219,25 +220,16 @@ loginForm.addEventListener("submit", async (e) => {
         if (data.success) {
             loggedIn = true;
             userId = data.user_id;
-
             localStorage.setItem(LOGGED_KEY, "true");
             localStorage.setItem(USER_ID_KEY, userId);
             sessionId = userId;
             localStorage.setItem(SESSION_KEY, sessionId);
-
-            // Reconectar WS con la nueva sesión
             if (ws) ws.close();
             connectWS();
-
             closeElement(loginPanel);
             addBubble("ai", "✅ Sesión iniciada correctamente.");
-        } else {
-            alert(data.message || "Error en inicio de sesión");
-        }
-    } catch (err) {
-        console.error("Error al conectar con el servidor:", err);
-        alert("Error al conectar con el servidor");
-    }
+        } else { alert(data.message || "Error en inicio de sesión"); }
+    } catch (err) { console.error("Error al conectar con el servidor:", err); alert("Error al conectar con el servidor"); }
 });
 
 registerForm.addEventListener("submit", async (e) => {
@@ -258,16 +250,11 @@ registerForm.addEventListener("submit", async (e) => {
         if (data.success) {
             addBubble("ai", "✅ Registro exitoso. Ahora puedes iniciar sesión.");
             closeElement(registerPanel);
-        } else {
-            alert(data.message || "Error en el registro");
-        }
-    } catch (err) {
-        console.error("Error al registrar usuario:", err);
-        alert("Error al conectar con el servidor");
-    }
+        } else { alert(data.message || "Error en el registro"); }
+    } catch (err) { console.error("Error al registrar usuario:", err); alert("Error al conectar con el servidor"); }
 });
 
 // -------------------------
-// Inicializar WebSocket
+// INICIALIZAR WS
 // -------------------------
 connectWS();
