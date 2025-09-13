@@ -89,5 +89,5 @@ def nueva_sesion(data: SessionData):
 @app.get("/session/{session_id}/messages")
 def get_session_messages_endpoint(session_id: str):
     sesiones = obtener_sesiones(session_id)
-    messages = [{"sender": "user", "content": s["contexto"]} for s in sesiones.data] if sesiones.data else []
+    messages = [{"sender": "user", "content": s["context"]} for s in sesiones.data] if sesiones.data else []
     return {"messages": messages}
