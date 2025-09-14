@@ -54,7 +54,4 @@ DEFAULT_GREETING_PROBABILITY = 0.8         # probabilidad de enviar un saludo al
 MAX_BUBBLES_PER_RESPONSE = 5               # máximo de burbujas que se pueden enviar por mensaje
 MIN_BUBBLES_PER_RESPONSE = 2               # mínimo de burbujas por mensaje
 
-# -------------------------------
-# RUTA LOCAL BASE DE DATOS (opcional SQLite)
-# -------------------------------
-DB_PATH = os.path.join(os.path.dirname(__file__), "miller2.db")
+

@@ -283,7 +283,6 @@ body {
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  /* Fondo más suave y menos saturado */
   background: radial-gradient(
     ellipse at center,
     rgba(255, 140, 0, 0.15) 0%,
@@ -505,5 +504,117 @@ footer.composer {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* ----------------------------------
+   MEDIA QUERIES: RESPONSIVIDAD
+----------------------------------- */
+
+/* TABLET (hasta 768px) */
+@media screen and (max-width: 768px) {
+  .topbar {
+    padding: 12px 16px;
+  }
+
+  .brand {
+    font-size: 20px;
+  }
+
+  .macmiller-gif {
+    width: 24px;
+    height: 24px;
+  }
+
+  .header-buttons {
+    gap: 8px;
+  }
+
+  #composer-form {
+    gap: 6px;
+  }
+
+  #prompt {
+    font-size: 0.95rem;
+    padding: 10px 12px;
+  }
+
+  #send, .btn-mic, .btn-audio-style {
+    font-size: 16px;
+    padding: 0.5rem 10px;
+  }
+
+  .floating-panel,
+  .modal-content {
+    width: 95%;
+    max-width: 350px;
+    padding: 1.5rem;
+  }
+
+  .bubble {
+    max-width: 65ch;
+  }
+
+  #voice-overlay {
+    width: 95%;
+  }
+}
+
+/* MÓVIL (hasta 480px) */
+@media screen and (max-width: 480px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .brand {
+    font-size: 18px;
+  }
+
+  .macmiller-gif {
+    width: 20px;
+    height: 20px;
+    margin-left: 6px;
+  }
+
+  .header-buttons {
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+  }
+
+  #composer-form {
+    flex-direction: column;
+  }
+
+  #prompt {
+    width: 100%;
+    font-size: 0.9rem;
+  }
+
+  #send, .btn-mic {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 14px;
+  }
+
+  .floating-panel,
+  .modal-content {
+    width: 90%;
+    max-width: 300px;
+    padding: 1rem;
+  }
+
+  .bubble {
+    max-width: 55ch;
+    padding: 10px 12px;
+  }
+
+  #voice-overlay {
+    width: 90%;
+    bottom: 70px;
+    padding: 12px;
   }
 }
