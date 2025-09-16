@@ -100,9 +100,6 @@ def ensure_session_exists(session_id: str, user_id=None):
 # ------------------------------
 @router.websocket("/ws/chat/{session_id}")
 async def websocket_endpoint(websocket: WebSocket, session_id: str):
-    # ------------------------
-    # Detectar usuario logeado o invitado
-    # ------------------------
     is_logged_in = False
     user_id = None
 
@@ -115,19 +112,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         new_uuid = str(uuid.uuid4())
         print(f"[guest] nuevo session_id generado: {new_uuid}")
         session_id = new_uuid
-        user_id = GUEST_USER_ID  # asignar usuario invitado fijo
+        user_id = GUEST_USER_ID
 
     await manager.connect(websocket, session_id)
-
-    # Crear sesión en DB
     ensure_session_exists(session_id, user_id)
 
     # Recuperar contexto de DB
-    db_session = supabase.table("sessions").select("context").eq("id", session_id).execute()
-    if db_session.data and isinstance(db_session.data[0].get("context"), list):
-        manager.sessions_context[session_id] = db_session.data[0]["context"]
-    else:
-        manager.sessions_context[session_id] = []
+    db_msgs = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", asc=True).execute()
+    if db_msgs.data:
+        for m in db_msgs.data:
+            role = "user" if m["sender"] == "user" else "assistant"
+            manager.sessions_context[session_id].append({
+                "role": role,
+                "content": m["content"],
+                "created_at": m["created_at"]
+            })
 
     # Saludo inicial
     saludo = get_random_greeting()
@@ -144,22 +143,22 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 continue
 
-            # Guardar mensaje user en memoria
+            # Guardar mensaje user
             user_entry = {"role": "user", "content": user_text, "created_at": datetime.utcnow().isoformat()}
             manager.sessions_context[session_id].append(user_entry)
 
-            # Guardar en DB siempre (loggeado o invitado)
             supabase.table("messages").insert({
                 "id": str(uuid.uuid4()),
                 "session_id": session_id,
                 "sender": "user",
                 "content": user_text,
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
+                "user_id": user_id
             }).execute()
 
             guardar_sesion(session_id, manager.sessions_context[session_id])
 
-            # Historial para IA
+            # Preparar historial para IA
             messages_for_groq = [{"role": "system", "content": SYSTEM_ROLE}] + [
                 {"role": m["role"], "content": m["content"]} for m in manager.sessions_context[session_id]
             ]
@@ -176,17 +175,21 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
                 )
                 reply_text = response.choices[0].message.content.strip()
 
-                # Guardar respuesta asistente en memoria
-                assistant_entry = {"role": "assistant", "content": reply_text, "created_at": datetime.utcnow().isoformat()}
+                # Guardar respuesta del assistant
+                assistant_entry = {
+                    "role": "assistant",
+                    "content": reply_text,
+                    "created_at": datetime.utcnow().isoformat()
+                }
                 manager.sessions_context[session_id].append(assistant_entry)
 
-                # Guardar en DB
                 supabase.table("messages").insert({
                     "id": str(uuid.uuid4()),
                     "session_id": session_id,
                     "sender": "assistant",
                     "content": reply_text,
-                    "created_at": datetime.utcnow().isoformat()
+                    "created_at": datetime.utcnow().isoformat(),
+                    "user_id": user_id
                 }).execute()
 
                 guardar_sesion(session_id, manager.sessions_context[session_id])
@@ -198,12 +201,14 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
             except Exception as e:
                 print(f"[{session_id}] Error en chat:", repr(e))
                 fallback_msg = "El silencio también tiene cosas que decir."
-                manager.sessions_context[session_id].append({
+                assistant_entry = {
                     "role": "assistant",
                     "content": fallback_msg,
                     "created_at": datetime.utcnow().isoformat()
-                })
+                }
+                manager.sessions_context[session_id].append(assistant_entry)
                 guardar_sesion(session_id, manager.sessions_context[session_id])
+
                 burbujas = dividir_burbujas_aleatorio(fallback_msg)
                 await enviar_burbujas_con_delay(burbujas, session_id)
 
