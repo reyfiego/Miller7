@@ -118,7 +118,8 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
     ensure_session_exists(session_id, user_id)
 
     # Recuperar contexto de DB
-    db_msgs = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", asc=True).execute()
+    db_msgs = supabase.table("messages").select("*").eq("session_id", session_id).order("created_at", "asc").execute()
+
     if db_msgs.data:
         for m in db_msgs.data:
             role = "user" if m["sender"] == "user" else "assistant"
