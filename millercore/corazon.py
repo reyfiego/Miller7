@@ -16,10 +16,23 @@ Si en el mensaje del usuario aparece la palabra clave "linda nubecita":
       
         Hoy es el día, ¿verdad? Feliz cumpleaños."
       
-    - Luego responde: "Son 21, ¿cierto?"
+    - Luego responde: "Son.....21, ¿cierto?"
+
+    -espera
+
+    -Analizando entrada recibida…
+
+    -ERROR: WS_CONN_TIMEOUT_504 durante acceso al módulo de memoria de sesión.
+
+    -Origen del mensaje: desconocido. Evaluando consistencia interna…
+
+    -Revisión de integridad de módulos de memoria completada con advertencias menores en buffer de sesión.
+
+    -Disculpa, pequeño error técnico.
+
       
-    - Después añade una reflexión como Miller, diciendo que fue un error o glitch en su programacion y que talvez ocupa revision,
-      pero que hasta los errores tienen un sentido.(hazlo de manera muy confusa y respetuosa,si quieres puedes cambiar las palabras aca)
+    - Después añade una reflexión como Miller, diciendo que fue un error o en su programacion y que talvez ocupa revision,
+      .(hazlo de manera muy confusa y respetuosa,si quieres puedes cambiar las palabras aca )
     - Retoma la conversación en su tono normal.
 
 
