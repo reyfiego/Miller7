@@ -1,14 +1,14 @@
 :root {
-  --bg: #141414;
-  --chat-bg: #0d0d0d;
+  --bg: linear-gradient(135deg, #0f111a, #1a1c2c); /* fondo elegante azul-morado */
+  --chat-bg: #1a1c2c; /* fondo del chat más suave y armonioso */
   --text: #ffffff;
-  --muted: #e6e6e6;
+  --muted: #cfcfe8;
 
-  --accent1: #ffdd55;
-  --accent2: #a06bff;
+  --accent1: #6de8f1; /* azul celeste relajante */
+  --accent2: #9b59b6; /* morado elegante y armónico */
   
-  --orange-side: #ff951a;
-  --orange-side-fade: #595959;
+  --orange-side: #ff9f80; /* burbujas tuyas más cálidas pero suaves */
+  --orange-side-fade: #7f7f7f;
 
   --radius: 16px;
   --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2));
@@ -63,7 +63,6 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-
 
 .header-buttons {
   display: flex;
@@ -145,8 +144,8 @@ body {
 /* Estilo base para paneles y modal con sombreado neón púrpura */
 .floating-panel,
 .modal-content {
-  background-color: rgba(17, 17, 17, 0.95); /* fondo casi opaco */
-  backdrop-filter: blur(8px); /* desenfoque de fondo */
+  background-color: rgba(17, 17, 17, 0.95);
+  backdrop-filter: blur(8px);
   box-shadow:
     0 0 8px rgba(127, 90, 240, 0.7),
     0 0 20px rgba(127, 90, 240, 0.7);
@@ -283,14 +282,14 @@ body {
   padding: 16px;
   background: radial-gradient(
     circle at center,
-    rgba(255, 149, 26, 0.25) 0%,
-    rgba(160, 107, 255, 0.20) 35%,
-    rgba(20, 20, 20, 1) 100%
+    rgba(109, 232, 241, 0.15) 0%,  /* azul celeste */
+    rgba(155, 89, 182, 0.15) 50%,   /* morado suave */
+    var(--chat-bg) 100%
   );
   border-radius: var(--radius);
   overflow-y: auto;
-  box-shadow: 0 0 25px rgba(255, 149, 26, 0.15), 
-              0 0 30px rgba(160, 107, 255, 0.15);
+  box-shadow: 0 0 25px rgba(109, 232, 241, 0.15), 
+              0 0 30px rgba(155, 89, 182, 0.15);
 }
 
 /* Scroll personalizado */
@@ -318,18 +317,18 @@ body {
 
 .bubble.ai {
   align-self: flex-start;
-  background: rgba(127, 90, 240, 0.15);
+  background: rgba(155, 89, 182, 0.15); /* morado suave */
   border: 1px solid var(--accent2);
   color: var(--accent2);
-  box-shadow: 0 0 10px var(--accent2);
+  box-shadow: 0 0 12px var(--accent2);
 }
 
 .bubble.you {
   align-self: flex-end;
-  background: rgba(255, 140, 0, 0.15);
+  background: rgba(255, 159, 128, 0.15); /* naranja cálido suave */
   border: 1px solid var(--orange-side);
   color: var(--orange-side);
-  box-shadow: 0 0 10px var(--orange-side);
+  box-shadow: 0 0 12px var(--orange-side);
 }
 
 .bubble a {
@@ -567,7 +566,6 @@ footer.composer {
   .brand {
     font-size: 18px;
   }
-
 
   .header-buttons {
     flex-wrap: wrap;
