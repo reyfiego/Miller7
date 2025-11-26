@@ -268,53 +268,8 @@ body {
   display: flex;
   justify-content: center;
   padding: 16px;
+  background: var(--bg);
   overflow: hidden;
-  background: radial-gradient(circle at center, #1b1b2f 0%, #141414 100%);
-  position: relative;
-}
-
-/* Líneas diagonales sutiles */
-.chat-wrapper::before {
-  content: "";
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255, 214, 102, 0.05) 0,
-    rgba(255, 214, 102, 0.05) 1px,
-    transparent 1px,
-    transparent 20px
-  );
-  animation: moveLines 20s linear infinite;
-  pointer-events: none;
-  z-index: 0;
-}
-
-@keyframes moveLines {
-  0% { transform: translate(0, 0); }
-  100% { transform: translate(50px, 50px); }
-}
-
-/* Partículas de luz flotando */
-.chat-wrapper::after {
-  content: "";
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background-image: radial-gradient(rgba(255,255,255,0.1) 2px, transparent 2px);
-  background-size: 50px 50px;
-  animation: floatParticles 60s linear infinite;
-  pointer-events: none;
-  z-index: 0;
-}
-
-@keyframes floatParticles {
-  0% { background-position: 0 0; }
-  50% { background-position: 25px 25px; }
-  100% { background-position: 0 0; }
 }
 
 .chat {
@@ -328,16 +283,14 @@ body {
   padding: 16px;
   background: radial-gradient(
     circle at center,
-    rgba(255,149,26,0.25) 0%,
-    rgba(160,107,255,0.20) 35%,
-    rgba(20,20,20,1) 100%
+    rgba(255, 149, 26, 0.25) 0%,
+    rgba(160, 107, 255, 0.20) 35%,
+    rgba(20, 20, 20, 1) 100%
   );
   border-radius: var(--radius);
   overflow-y: auto;
-  box-shadow: 0 0 25px rgba(255,149,26,0.15), 
-              0 0 30px rgba(160,107,255,0.15);
-  position: relative;
-  z-index: 1;
+  box-shadow: 0 0 25px rgba(255, 149, 26, 0.15), 
+              0 0 30px rgba(160, 107, 255, 0.15);
 }
 
 /* Scroll personalizado */
@@ -353,37 +306,30 @@ body {
 }
 
 /* BURBUJAS CHAT */
-@keyframes bubbleGlow {
-  0% { box-shadow: 0 0 8px rgba(255,255,255,0.05), 0 0 15px rgba(255,255,255,0.05); }
-  50% { box-shadow: 0 0 12px rgba(255,255,255,0.1), 0 0 25px rgba(255,255,255,0.1); }
-  100% { box-shadow: 0 0 8px rgba(255,255,255,0.05), 0 0 15px rgba(255,255,255,0.05); }
-}
-
 .bubble {
   max-width: 75ch;
   border-radius: var(--radius);
   padding: 12px 14px;
   word-wrap: break-word;
-  animation: fadeIn 0.25s ease, bubbleGlow 6s ease-in-out infinite;
+  animation: fadeIn 0.25s ease;
   color: #fff;
-  background: linear-gradient(135deg, rgba(255,140,0,0.2), rgba(160,107,255,0.2));
-  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
 }
 
 .bubble.ai {
   align-self: flex-start;
-  background: linear-gradient(135deg, rgba(160,107,255,0.3), rgba(107,196,255,0.2));
-  border: 1px solid rgba(160,107,255,0.5);
+  background: rgba(127, 90, 240, 0.15);
+  border: 1px solid var(--accent2);
   color: var(--accent2);
-  box-shadow: 0 0 10px rgba(160,107,255,0.5);
+  box-shadow: 0 0 10px var(--accent2);
 }
 
 .bubble.you {
   align-self: flex-end;
-  background: linear-gradient(135deg, rgba(255,149,26,0.3), rgba(255,214,102,0.2));
+  background: rgba(255, 140, 0, 0.15);
   border: 1px solid var(--orange-side);
   color: var(--orange-side);
-  box-shadow: 0 0 10px rgba(255,149,26,0.5);
+  box-shadow: 0 0 10px var(--orange-side);
 }
 
 .bubble a {
@@ -622,29 +568,43 @@ footer.composer {
     font-size: 18px;
   }
 
+
   .header-buttons {
-    width: 100%;
-    justify-content: flex-start;
     flex-wrap: wrap;
     gap: 6px;
+    width: 100%;
   }
 
   #composer-form {
     flex-direction: column;
-    gap: 6px;
   }
 
   #prompt {
+    width: 100%;
     font-size: 0.9rem;
-    padding: 10px;
   }
 
-  #send, .btn-mic, .btn-audio-style {
+  #send, .btn-mic {
+    width: 100%;
+    padding: 0.5rem;
     font-size: 14px;
-    padding: 0.5rem 8px;
+  }
+
+  .floating-panel,
+  .modal-content {
+    width: 90%;
+    max-width: 300px;
+    padding: 1rem;
   }
 
   .bubble {
-    max-width: 90%;
+    max-width: 55ch;
+    padding: 10px 12px;
+  }
+
+  #voice-overlay {
+    width: 90%;
+    bottom: 70px;
+    padding: 12px;
   }
 }
