@@ -1,12 +1,15 @@
 :root {
-  --bg: #1c1c1c;
-  --chat-bg: #111111;
-  --text: #fff;
-  --muted: #dcdcdc;
-  --accent1: #f5c542;
-  --accent2: #7f5af0;
-  --orange-side: #FF8C00; /* naranja vivo y cálido */
-  --orange-side-fade: #7f7f7f; /* grisáceo para difuminado */
+  --bg: #141414;
+  --chat-bg: #0d0d0d;
+  --text: #ffffff;
+  --muted: #e6e6e6;
+
+  --accent1: #ffdd55;
+  --accent2: #a06bff;
+  
+  --orange-side: #ff951a;
+  --orange-side-fade: #595959;
+
   --radius: 16px;
   --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2));
 }
@@ -279,13 +282,15 @@ body {
   gap: 12px;
   padding: 16px;
   background: radial-gradient(
-    ellipse at center,
-    rgba(255, 140, 0, 0.15) 0%,
-    rgba(127, 127, 127, 0.1) 80%,
-    var(--bg) 100%
+    circle at center,
+    rgba(255, 149, 26, 0.25) 0%,
+    rgba(160, 107, 255, 0.20) 35%,
+    rgba(20, 20, 20, 1) 100%
   );
   border-radius: var(--radius);
   overflow-y: auto;
+  box-shadow: 0 0 25px rgba(255, 149, 26, 0.15), 
+              0 0 30px rgba(160, 107, 255, 0.15);
 }
 
 /* Scroll personalizado */
