@@ -516,11 +516,6 @@ footer.composer {
     font-size: 20px;
   }
 
-  .macmiller-gif {
-    width: 24px;
-    height: 24px;
-  }
-
   .header-buttons {
     gap: 8px;
   }
@@ -568,11 +563,6 @@ footer.composer {
     font-size: 18px;
   }
 
-  .macmiller-gif {
-    width: 20px;
-    height: 20px;
-    margin-left: 6px;
-  }
 
   .header-buttons {
     flex-wrap: wrap;
