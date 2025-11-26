@@ -27,44 +27,12 @@
       
       <div class="g-recaptcha" data-sitekey="TU_SITE_KEY"></div>
       
-      <button type="submit" class="btn" id="login-btn">Entrar</button>
+      <button type="submit" class="btn">Entrar</button>
       <p>¿No tienes cuenta? <a href="/register.html">Regístrate</a></p>
     </form>
   </section>
 </div>
 
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const loginForm = document.getElementById("login-form");
-  const loginBtn = document.getElementById("login-btn");
-  const authSection = document.querySelector(".auth-section");
-
-  // Verifica si el usuario ya inició sesión
-  const usuarioLogueado = localStorage.getItem("usuario");
-
-  if (usuarioLogueado) {
-    // Oculta el formulario de login
-    loginForm.style.display = "none";
-
-    // Mostrar mensaje de bienvenida
-    const msg = document.createElement("p");
-    msg.textContent = `Bienvenido, ${usuarioLogueado}!`;
-    authSection.appendChild(msg);
-  }
-
-  // Manejo del login si no hay usuario logueado
-  loginForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const username = document.getElementById("login-username").value;
-
-    // Guardar usuario en localStorage
-    localStorage.setItem("usuario", username);
-
-    // Recarga la página para actualizar la vista
-    location.reload();
-  });
-});
-</script>
-
+<script src="/static/login.js"></script>
 </body>
 </html>
