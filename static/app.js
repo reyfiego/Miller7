@@ -13,6 +13,53 @@ const LOGGED_KEY = "miller_logged_in";
 const USER_ID_KEY = "miller_user_id";
 
 let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
+// -------------------------
+// LIMITADOR DE USO: 20 mensajes por hora
+// -------------------------
+const LIMIT = 20;
+const LIMIT_KEY = loggedIn ? `limit_count_${userId}` : `limit_count_${sessionId}`;
+const LIMIT_TIME_KEY = loggedIn ? `limit_time_${userId}` : `limit_time_${sessionId}`;
+
+function canSendMessage() {
+    const now = Date.now();
+    let lastReset = Number(localStorage.getItem(LIMIT_TIME_KEY)) || 0;
+    let count = Number(localStorage.getItem(LIMIT_KEY)) || 0;
+
+    // Si pasó 1 hora → reiniciar contador
+    if (now - lastReset >= 3600000) {
+        localStorage.setItem(LIMIT_KEY, 0);
+        localStorage.setItem(LIMIT_TIME_KEY, now);
+        return true;
+    }
+
+    // Si no ha pasado una hora pero aún tiene mensajes disponibles
+    if (count < LIMIT) return true;
+
+    return false; // Ya alcanzó el límite
+}
+
+function registerMessageSent() {
+    const now = Date.now();
+    let count = Number(localStorage.getItem(LIMIT_KEY)) || 0;
+    let lastReset = Number(localStorage.getItem(LIMIT_TIME_KEY)) || 0;
+
+    // Si nunca se ha establecido un reset → establecerlo
+    if (!lastReset) {
+        localStorage.setItem(LIMIT_TIME_KEY, now);
+        lastReset = now;
+    }
+
+    // Si pasó 1 hora → resetear
+    if (now - lastReset >= 3600000) {
+        localStorage.setItem(LIMIT_KEY, 1);
+        localStorage.setItem(LIMIT_TIME_KEY, now);
+        return;
+    }
+
+    // Contabilizar mensaje
+    localStorage.setItem(LIMIT_KEY, count + 1);
+}
+
 let userId = localStorage.getItem(USER_ID_KEY);
 let sessionId;
 
@@ -229,9 +276,21 @@ async function processQueue() {
 }
 
 function send(text) {
+
+    // 🚫 VERIFICAR SI PUEDE ENVIAR MENSAJE
+    if (!canSendMessage()) {
+        addBubble("ai", "⚠️ Has alcanzado el límite de 20 mensajes por hora. Espera un momento antes de continuar.");
+        return; // ❗ NO enviar nada al servidor ni guardar en base de datos
+    }
+
+    // Registrar burbuja del usuario
     addBubble("you", text);
     input.value = "";
 
+    // Registrar el mensaje en el contador
+    registerMessageSent();
+
+    // Enviar al WebSocket si está conectado
     if (!ws || ws.readyState !== WebSocket.OPEN) {
         addBubble("ai", "❌ No hay conexión con el servidor. Intentando reconectar...");
         reconnectWS();
@@ -240,6 +299,7 @@ function send(text) {
 
     ws.send(JSON.stringify({ message: text, user_id: loggedIn ? userId : null }));
 }
+
 
 function reconnectWS() {
     if (!ws || ws.readyState === WebSocket.CLOSED) connectWS();

@@ -6,17 +6,17 @@
   <meta name="viewport" content="width=1024" />
   <link href="/static/style.css" rel="stylesheet" />
 
+  <!-- reCAPTCHA v2 -->
+  <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+
 </head>
 <body>
   <div class="app">
     <header class="topbar">
       <div class="brand-container">
         <div class="brand">Miller<span>2</span></div>
-        
-         
-          
-        />
       </div>
+
       <div class="header-buttons">
         <button id="login-btn" class="btn-audio-style">Iniciar sesión</button>
         <button id="register-btn" class="btn-audio-style">Registro</button>
@@ -72,10 +72,15 @@
       <h2>Iniciar Sesión</h2>
       <span class="close-btn" id="close-login">&times;</span>
     </div>
+
     <form id="login-form">
+
       <input type="email" name="email" placeholder="Correo" required />
       <input type="password" name="password" placeholder="Contraseña" required />
-      <div class="captcha-placeholder">[CAPTCHA]</div>
+
+      <!-- CAPTCHA Login -->
+      <div class="g-recaptcha" data-sitekey="AQUI_TU_SITE_KEY"></div>
+
       <button type="submit">Entrar</button>
     </form>
   </div>
@@ -86,15 +91,19 @@
       <h2>Registro</h2>
       <span class="close-btn" id="close-register">&times;</span>
     </div>
+
     <form id="register-form">
+
       <input type="email" name="email" placeholder="Correo" required />
       <input type="password" name="password" placeholder="Contraseña" required />
-      <div class="captcha-placeholder">[CAPTCHA]</div>
+
+      <!-- CAPTCHA Registro -->
+      <div class="g-recaptcha" data-sitekey="6LdFABosAAAAAC3bgrtJ3mmwbIsljuNSjy-QynNG"></div>
+
       <button type="submit">Crear cuenta</button>
     </form>
   </div>
 
   <script src="/static/app.js"></script>
-
 </body>
 </html>
