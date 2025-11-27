@@ -52,7 +52,7 @@ class ConnectionManager:
         if websocket:
             try:
                 if "reply" in message:
-                    message["reply"] = [f"[ws] {b}" for b in message["reply"]]
+                    message["reply"] = [f"[] {b}" for b in message["reply"]]
                     self.burbujas_enviadas[session_id].update(message["reply"])
                 await websocket.send_json(message)
             except Exception as e:
