@@ -1,19 +1,18 @@
 :root {
-  --bg: #101820;
-  --chat-bg: #1c2833;
-  --text: #a0a8b0;
-  --muted: #5a6370;
+  --bg: #0D0D0D;
+  --chat-bg: #1B1B1B;
+  --text: #E5E5E5;
+  --muted: #7D7D7D;
 
-  --accent1: #ff3a1a;
-  --accent2: #ff6b1a;
+  --accent1: #FF4500;
+  --accent2: #FF8C00;
 
-  --orange-side: #e65a00;
-  --orange-side-fade: #b34700;
+  --orange-side: #D35400;
+  --orange-side-fade: #A04000;
 
   --radius: 16px;
   --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2));
 }
-
 /* Reset y base */
 * {
   box-sizing: border-box;
