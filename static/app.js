@@ -5,21 +5,27 @@ const SESSION_KEY = "miller_session_id";
 const LOGGED_KEY = "miller_logged_in";
 const USER_ID_KEY = "miller_user_id";
 
+// Referencias a botones (ya existentes en tu HTML)
+const LoginBtn = document.getElementById("login-btn");
+const RegisterBtn = document.getElementById("register-btn");
+const logoutBtn = document.getElementById("logout-btn");
+
+// Estado actual de sesión
 let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
 let userId = localStorage.getItem(USER_ID_KEY);
 let sessionId;
 
+// Si está logeado → el sessionId es el userId
 if (loggedIn && userId) {
-    // Usuario logeado → sessionId fijo
     sessionId = userId;
     localStorage.setItem(SESSION_KEY, sessionId);
 } else {
-    // Invitado → siempre un nuevo sessionId en cada refresh
+    // Invitado → generar nuevo sessionId siempre
     sessionId = crypto.randomUUID();
     console.log("Sesión invitado generada:", sessionId);
 }
 
-// --- Mostrar u ocultar botones según login ---
+// Mostrar u ocultar botones según estado de sesión
 if (loggedIn) {
     loginBtn.style.display = "none";
     registerBtn.style.display = "none";
@@ -30,13 +36,16 @@ if (loggedIn) {
     logoutBtn.style.display = "none";
 }
 
-// --- Cerrar sesión ---
+// Acción de cerrar sesión
 logoutBtn.addEventListener("click", () => {
     localStorage.removeItem(LOGGED_KEY);
     localStorage.removeItem(USER_ID_KEY);
     localStorage.removeItem(SESSION_KEY);
 
-    window.location.reload();
+    // Opcional: mostrar feedback
+    console.log("Sesión cerrada.");
+
+    window.location.reload(); // Recargar para refrescar estado visible
 });
 
 
