@@ -1,51 +1,81 @@
 // -------------------------
+// ELEMENTOS DEL DOM
+// -------------------------
+const loginBtn = document.getElementById("loginBtn");
+const registerBtn = document.getElementById("registerBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+
+// -------------------------
 // SESIÓN
 // -------------------------
 const SESSION_KEY = "miller_session_id";
 const LOGGED_KEY = "miller_logged_in";
 const USER_ID_KEY = "miller_user_id";
 
-// Referencias a botones (ya existentes en tu HTML)
-const loginBtn = document.getElementById("login-btn");
-const registerBtn = document.getElementById("register-btn");
-const logoutBtn = document.getElementById("logout-btn");
-
-// Estado actual de sesión
 let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
 let userId = localStorage.getItem(USER_ID_KEY);
 let sessionId;
 
-// Si está logeado → el sessionId es el userId
+// Si el usuario está logueado → usar su userId como sessionId
 if (loggedIn && userId) {
     sessionId = userId;
     localStorage.setItem(SESSION_KEY, sessionId);
 } else {
-    // Invitado → generar nuevo sessionId siempre
+    // Invitado → generar nueva sessionId en cada refresh
     sessionId = crypto.randomUUID();
     console.log("Sesión invitado generada:", sessionId);
 }
 
-// Mostrar u ocultar botones según estado de sesión
-if (loggedIn) {
-    loginBtn.style.display = "none";
-    registerBtn.style.display = "none";
-    logoutBtn.style.display = "inline-block";
-} else {
-    loginBtn.style.display = "inline-block";
-    registerBtn.style.display = "inline-block";
-    logoutBtn.style.display = "none";
+// -------------------------
+// VISIBILIDAD DE BOTONES
+// -------------------------
+function updateUI() {
+    if (loggedIn) {
+        loginBtn.style.display = "none";
+        registerBtn.style.display = "none";
+        logoutBtn.style.display = "inline-block";
+    } else {
+        loginBtn.style.display = "inline-block";
+        registerBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+    }
 }
 
-// Acción de cerrar sesión
+updateUI();
+
+// -------------------------
+// INICIAR SESIÓN (EJEMPLO)
+// -------------------------
+async function loginUser(email, password) {
+    // Aquí pondrás tu login real con Supabase
+    // ========================================
+    // Supongamos que el login fue exitoso:
+    const fakeUserId = "user_" + crypto.randomUUID();
+
+    localStorage.setItem(LOGGED_KEY, "true");
+    localStorage.setItem(USER_ID_KEY, fakeUserId);
+    localStorage.setItem(SESSION_KEY, fakeUserId);
+
+    // 🔥 REFRESCAR LA PÁGINA INMEDIATAMENTE
+    window.location.reload();
+}
+
+// Si tu botón de login abre un modal o formulario, esto es opcional:
+loginBtn?.addEventListener("click", () => {
+    // llamar loginUser() cuando el usuario envíe el form
+});
+
+// -------------------------
+// CERRAR SESIÓN
+// -------------------------
 logoutBtn.addEventListener("click", () => {
     localStorage.removeItem(LOGGED_KEY);
     localStorage.removeItem(USER_ID_KEY);
     localStorage.removeItem(SESSION_KEY);
 
-    console.log("Sesión cerrada.");
-
-    window.location.reload(); // refrescar versión invitado
+    window.location.reload(); // ya lo tenías, está bien
 });
+
 
 // -------------------------
 // ELEMENTOS DEL DOM
