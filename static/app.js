@@ -19,6 +19,27 @@ if (loggedIn && userId) {
     console.log("Sesión invitado generada:", sessionId);
 }
 
+// --- Mostrar u ocultar botones según login ---
+if (loggedIn) {
+    loginBtn.style.display = "none";
+    registerBtn.style.display = "none";
+    logoutBtn.style.display = "inline-block";
+} else {
+    loginBtn.style.display = "inline-block";
+    registerBtn.style.display = "inline-block";
+    logoutBtn.style.display = "none";
+}
+
+// --- Cerrar sesión ---
+logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem(LOGGED_KEY);
+    localStorage.removeItem(USER_ID_KEY);
+    localStorage.removeItem(SESSION_KEY);
+
+    window.location.reload();
+});
+
+
 // -------------------------
 // ELEMENTOS DEL DOM
 // -------------------------
