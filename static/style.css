@@ -1,15 +1,14 @@
 :root {
-  --bg: #0f1a28;
-  --chat-bg: #172233;
+  --bg: #101820;
+  --chat-bg: #1c2833;
+  --text: #a0a8b0;
+  --muted: #5a6370;
 
-  --text: #4f5b6b;
-  --muted: #4f5b6b;
+  --accent1: #ff3a1a;
+  --accent2: #ff6b1a;
 
-  --accent1: #ff1f00;
-  --accent2: #ff4800;
-
-  --orange-side: #e64a00;
-  --orange-side-fade: #b33a00;
+  --orange-side: #e65a00;
+  --orange-side-fade: #b34700;
 
   --radius: 16px;
   --scroll-bg: linear-gradient(to bottom, var(--accent1), var(--accent2));
