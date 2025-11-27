@@ -57,7 +57,7 @@ body {
 }
 .brand span {
   background: linear-gradient(90deg, var(--accent1), var(--accent2));
-  -webkit-background-clip: text;
+  -webkit-background-clipor : text;
   -webkit-text-fill-color: transparent;
 }
 
