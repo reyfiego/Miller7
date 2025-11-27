@@ -1,8 +1,9 @@
 :root {
   --bg: #1c1c2e;                 
   --chat-bg: #2f2a48;            
-  --chat-bg: #2f2a48;            
-  --muted: #9a9bb6;              
+   --text: #b0b0c0;              
+  --muted: #9a9bb6;        
+
   --accent1: #5d7fff;            
   --accent2: #b36bff;            
 
