@@ -5,9 +5,9 @@ const SESSION_KEY = "miller_session_id";
 const LOGGED_KEY = "miller_logged_in";
 const USER_ID_KEY = "miller_user_id";
 
-// Referencias a botones (ya existentes en tu HTML)
-const LoginBtn = document.getElementById("login-btn");
-const RegisterBtn = document.getElementById("register-btn");
+// Referencias reales a botones (sin duplicados)
+const loginBtn = document.getElementById("login-btn");
+const registerBtn = document.getElementById("register-btn");
 const logoutBtn = document.getElementById("logout-btn");
 
 // Estado actual de sesión
@@ -15,17 +15,17 @@ let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
 let userId = localStorage.getItem(USER_ID_KEY);
 let sessionId;
 
-// Si está logeado → el sessionId es el userId
+// Si está logeado → sessionId = userId
 if (loggedIn && userId) {
     sessionId = userId;
     localStorage.setItem(SESSION_KEY, sessionId);
 } else {
-    // Invitado → generar nuevo sessionId siempre
+    // Invitado → generar sessionId nuevo
     sessionId = crypto.randomUUID();
     console.log("Sesión invitado generada:", sessionId);
 }
 
-// Mostrar u ocultar botones según estado de sesión
+// Mostrar/ocultar botones según sesión
 if (loggedIn) {
     loginBtn.style.display = "none";
     registerBtn.style.display = "none";
@@ -41,13 +41,9 @@ logoutBtn.addEventListener("click", () => {
     localStorage.removeItem(LOGGED_KEY);
     localStorage.removeItem(USER_ID_KEY);
     localStorage.removeItem(SESSION_KEY);
-
-    // Opcional: mostrar feedback
     console.log("Sesión cerrada.");
-
-    window.location.reload(); // Recargar para refrescar estado visible
+    window.location.reload();
 });
-
 
 // -------------------------
 // ELEMENTOS DEL DOM
@@ -65,8 +61,6 @@ const infoBtn = document.getElementById("info-btn");
 const modal = document.getElementById("info-modal");
 const closeModal = document.getElementById("close-modal");
 
-const loginBtn = document.getElementById("login-btn");
-const registerBtn = document.getElementById("register-btn");
 const loginPanel = document.getElementById("login-panel");
 const registerPanel = document.getElementById("register-panel");
 const closeLogin = document.getElementById("close-login");
@@ -82,14 +76,18 @@ const registerForm = document.getElementById("register-form");
 function openElement(element) {
     element.classList.add("active");
     element.classList.remove("closing");
-    if (element === loginPanel || element === registerPanel) panelOverlay.classList.add("active");
+    if (element === loginPanel || element === registerPanel) {
+        panelOverlay.classList.add("active");
+    }
 }
 
 function closeElement(element) {
     element.classList.add("closing");
     setTimeout(() => {
         element.classList.remove("active", "closing");
-        if (element === loginPanel || element === registerPanel) panelOverlay.classList.remove("active");
+        if (element === loginPanel || element === registerPanel) {
+            panelOverlay.classList.remove("active");
+        }
     }, 300);
 }
 
@@ -102,10 +100,14 @@ function addBubble(sender, text) {
 }
 
 function escapeHtml(str) {
-    return str.replace(/[&<>"']/g, s => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[s]));
+    return str.replace(/[&<>"']/g, s => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
+    }[s]));
 }
 
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+function delay(ms) { 
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // -------------------------
 // PANELES
@@ -114,19 +116,26 @@ loginBtn.addEventListener("click", () => {
     openElement(loginPanel); 
     registerPanel.classList.remove("active"); 
 });
+
 registerBtn.addEventListener("click", () => { 
     openElement(registerPanel); 
     loginPanel.classList.remove("active"); 
 });
+
 closeLogin.addEventListener("click", () => closeElement(loginPanel));
 closeRegister.addEventListener("click", () => closeElement(registerPanel));
+
 panelOverlay.addEventListener("click", () => { 
     closeElement(loginPanel); 
     closeElement(registerPanel); 
 });
+
 infoBtn.addEventListener("click", () => openElement(modal));
 closeModal.addEventListener("click", () => closeElement(modal));
-window.addEventListener("click", (e) => { if (e.target === modal) closeElement(modal); });
+
+window.addEventListener("click", (e) => { 
+    if (e.target === modal) closeElement(modal);
+});
 
 // -------------------------
 // WEBSOCKET
@@ -144,11 +153,11 @@ function connectWS() {
     ws.onopen = async () => {
         console.log("Conectado al WebSocket con session_id:", sessionId);
 
-        // Cargar historial
         try {
             const realSessionId = loggedIn ? userId : sessionId;
             const res = await fetch(`/session/${realSessionId}/messages`);
             const data = await res.json();
+
             if (Array.isArray(data.messages)) {
                 data.messages.forEach(msg => {
                     const sender = msg.sender === "user" ? "you" : "ai";
@@ -156,12 +165,15 @@ function connectWS() {
                     burbujasMostradas.add(msg.content);
                 });
             }
-        } catch (err) { console.warn("No se pudieron cargar mensajes previos:", err); }
+        } catch (err) {
+            console.warn("No se pudieron cargar mensajes previos:", err);
+        }
     };
 
     ws.onmessage = (event) => {
         let data;
-        try { data = JSON.parse(event.data); } catch { data = { reply: [event.data] }; }
+        try { data = JSON.parse(event.data); }
+        catch { data = { reply: [event.data] }; }
 
         if (Array.isArray(data.reply)) {
             data.reply.forEach(msg => mensajeQueue.push(msg.replace(/(\.\.\.)+/g, "…")));
@@ -193,7 +205,10 @@ function send(text) {
         return;
     }
 
-    ws.send(JSON.stringify({ message: text, user_id: loggedIn ? userId : null }));
+    ws.send(JSON.stringify({
+        message: text,
+        user_id: loggedIn ? userId : null
+    }));
 }
 
 function reconnectWS() {
@@ -211,8 +226,10 @@ form.addEventListener("submit", (e) => {
 // -------------------------
 let recognition;
 let currentTranscript = "";
+
 if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
     recognition = new SpeechRecognition();
     recognition.lang = "es-ES";
     recognition.interimResults = true;
@@ -222,21 +239,45 @@ if ("webkitSpeechRecognition" in window || "SpeechRecognition" in window) {
         waveBar.style.width = Math.min(100, Math.random() * 100) + "%";
     });
 
-    recognition.addEventListener("end", () => { micBtn.disabled = false; waveBar.style.width = "0%"; });
+    recognition.addEventListener("end", () => {
+        micBtn.disabled = false;
+        waveBar.style.width = "0%";
+    });
 
-    micBtn.addEventListener("click", () => { overlay.style.display = "flex"; micBtn.disabled = true; recognition.start(); });
-    confirmBtn.addEventListener("click", () => { if (currentTranscript.trim()) send(currentTranscript); overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-    cancelBtn.addEventListener("click", () => { overlay.style.display = "none"; currentTranscript = ""; waveBar.style.width = "0%"; });
-} else { micBtn.disabled = true; micBtn.title = "Tu navegador no soporta reconocimiento de voz"; }
+    micBtn.addEventListener("click", () => {
+        overlay.style.display = "flex";
+        micBtn.disabled = true;
+        recognition.start();
+    });
+
+    confirmBtn.addEventListener("click", () => {
+        if (currentTranscript.trim()) send(currentTranscript);
+        overlay.style.display = "none";
+        currentTranscript = "";
+        waveBar.style.width = "0%";
+    });
+
+    cancelBtn.addEventListener("click", () => {
+        overlay.style.display = "none";
+        currentTranscript = "";
+        waveBar.style.width = "0%";
+    });
+
+} else {
+    micBtn.disabled = true;
+    micBtn.title = "Tu navegador no soporta reconocimiento de voz";
+}
 
 // -------------------------
-// LOGIN / REGISTRO SIN REFRESH
+// LOGIN / REGISTRO
 // -------------------------
 loginForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+
     const formData = new FormData(loginForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
+
     if (!email || !password) return alert("Completa todos los campos.");
 
     try {
@@ -245,28 +286,42 @@ loginForm.addEventListener("submit", async (e) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password })
         });
+
         const data = await res.json();
 
         if (data.success) {
             loggedIn = true;
             userId = data.user_id;
+
             localStorage.setItem(LOGGED_KEY, "true");
             localStorage.setItem(USER_ID_KEY, userId);
+
             sessionId = userId;
             localStorage.setItem(SESSION_KEY, sessionId);
+
             if (ws) ws.close();
             connectWS();
+
             closeElement(loginPanel);
             addBubble("ai", "✅ Sesión iniciada correctamente.");
-        } else { alert(data.message || "Error en inicio de sesión"); }
-    } catch (err) { console.error("Error al conectar con el servidor:", err); alert("Error al conectar con el servidor"); }
+
+        } else {
+            alert(data.message || "Error en inicio de sesión");
+        }
+
+    } catch (err) {
+        console.error("Error al conectar con el servidor:", err);
+        alert("Error al conectar con el servidor");
+    }
 });
 
 registerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
+
     const formData = new FormData(registerForm);
     const email = formData.get("email").trim();
     const password = formData.get("password").trim();
+
     if (!email || !password) return alert("Completa todos los campos.");
 
     try {
@@ -275,16 +330,23 @@ registerForm.addEventListener("submit", async (e) => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email, password })
         });
+
         const data = await res.json();
 
         if (data.success) {
             addBubble("ai", "✅ Registro exitoso. Ahora puedes iniciar sesión.");
             closeElement(registerPanel);
-        } else { alert(data.message || "Error en el registro"); }
-    } catch (err) { console.error("Error al registrar usuario:", err); alert("Error al conectar con el servidor"); }
+        } else {
+            alert(data.message || "Error en el registro");
+        }
+
+    } catch (err) {
+        console.error("Error al conectar con el servidor:", err);
+        alert("Error al conectar con el servidor");
+    }
 });
 
 // -------------------------
-// INICIALIZAR WS
+// INICIAR WS
 // -------------------------
 connectWS();
