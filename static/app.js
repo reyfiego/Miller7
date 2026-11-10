@@ -13,6 +13,19 @@ const LOGGED_KEY = "miller_logged_in";
 const USER_ID_KEY = "miller_user_id";
 
 let loggedIn = localStorage.getItem(LOGGED_KEY) === "true";
+let userId = localStorage.getItem(USER_ID_KEY);
+let sessionId;
+
+// Si el usuario está logueado → usar su userId como sessionId
+if (loggedIn && userId) {
+    sessionId = userId;
+    localStorage.setItem(SESSION_KEY, sessionId);
+} else {
+    // Invitado → generar nueva sessionId en cada refresh
+    sessionId = crypto.randomUUID();
+    console.log("Sesión invitado generada:", sessionId);
+}
+
 // -------------------------
 // LIMITADOR DE USO: 20 mensajes por hora
 // -------------------------
@@ -58,19 +71,6 @@ function registerMessageSent() {
 
     // Contabilizar mensaje
     localStorage.setItem(LIMIT_KEY, count + 1);
-}
-
-let userId = localStorage.getItem(USER_ID_KEY);
-let sessionId;
-
-// Si el usuario está logueado → usar su userId como sessionId
-if (loggedIn && userId) {
-    sessionId = userId;
-    localStorage.setItem(SESSION_KEY, sessionId);
-} else {
-    // Invitado → generar nueva sessionId en cada refresh
-    sessionId = crypto.randomUUID();
-    console.log("Sesión invitado generada:", sessionId);
 }
 
 // -------------------------
